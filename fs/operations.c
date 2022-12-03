@@ -250,7 +250,7 @@ int tfs_copy_from_external_fs(char const *source_path, char const *dest_path) {
     }
 
     /* Creates a new file on the TecnicoFS API */
-    FILE *internalFd = tfs_open(dest_path, TFS_O_CREAT);
+    int internalFd = tfs_open(dest_path, TFS_O_CREAT);
     if (internalFd == -1) {
         return -1;
     }
@@ -263,8 +263,11 @@ int tfs_copy_from_external_fs(char const *source_path, char const *dest_path) {
     int bytes_written = -1, bytes_read = -1; // TODO: Check initial values
 
     while(bytes_written && bytes_read) {
-        bytes_read = fread(buffer, sizeof(char), sizeof(buffer) - 1, externalFd);
-        bytes_written = tfs_write(internalFd, buffer, bytes_read); // TODO: Check if it works
+        bytes_read = (int) fread(buffer, (size_t) sizeof(char), (size_t) sizeof(buffer) - 1, externalFd);
+        bytes_written = (int) tfs_write(internalFd, buffer, (size_t) bytes_read); // TODO: Check if it works
     }
     // TODO: Add error handling
+
+    if (fclose(externalFd) == EOF) return -1;
+    return tfs_close(internalFd);
 }
