@@ -242,10 +242,29 @@ int tfs_unlink(char const *target) {
 }
 
 int tfs_copy_from_external_fs(char const *source_path, char const *dest_path) {
-    (void)source_path;
-    (void)dest_path;
-    // ^ this is a trick to keep the compiler from complaining about unused
-    // variables. TODO: remove
+    
+    /* Opens the file from the external filesystem */
+    FILE *externalFd = fopen(source_path, "r");
+    if (externalFd == NULL) {
+        return -1;
+    }
 
-    PANIC("TODO: tfs_copy_from_external_fs");
+    /* Creates a new file on the TecnicoFS API */
+    FILE *internalFd = tfs_open(dest_path, TFS_O_CREAT);
+    if (internalFd == -1) {
+        return -1;
+    }
+
+    /* Creates a new buffer that will be used for transferring the file's data */
+    char buffer[128];
+    memset(buffer, 0, sizeof(buffer));
+
+    /* Read the content of the source file and write it onto the destination file */
+    int bytes_written = -1, bytes_read = -1; // TODO: Check initial values
+
+    while(bytes_written && bytes_read) {
+        bytes_read = fread(buffer, sizeof(char), sizeof(buffer) - 1, externalFd);
+        bytes_written = tfs_write(internalFd, buffer, sizeof(buffer) - 1); // TODO: Check if it works
+    }
+    // TODO: Add error handling
 }
