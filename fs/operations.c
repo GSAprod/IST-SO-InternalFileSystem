@@ -264,7 +264,7 @@ int tfs_copy_from_external_fs(char const *source_path, char const *dest_path) {
 
     while(bytes_written && bytes_read) {
         bytes_read = fread(buffer, sizeof(char), sizeof(buffer) - 1, externalFd);
-        bytes_written = tfs_write(internalFd, buffer, sizeof(buffer) - 1); // TODO: Check if it works
+        bytes_written = tfs_write(internalFd, buffer, bytes_read); // TODO: Check if it works
     }
     // TODO: Add error handling
 }
