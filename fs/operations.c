@@ -142,12 +142,45 @@ int tfs_sym_link(char const *target, char const *link_name) {
 }
 
 int tfs_link(char const *target, char const *link_name) {
-    (void)target;
-    (void)link_name;
-    // ^ this is a trick to keep the compiler from complaining about unused
-    // variables. TODO: remove
 
-    PANIC("TODO: tfs_link");
+    inode_t *root_dir_inode = inode_get(ROOT_DIR_INUM);
+    if (root_dir_inode == NULL)
+            return -1;
+    //ALWAYS_ASSERT(root_dir_inode != NULL,
+    //              "tfs_link: root dir inode must exist");
+    int inum = tfs_lookup(target, root_dir_inode);
+
+    if (inum >= 0) {
+        // The file already exists
+        inode_t *inode = inode_get(inum);
+        if (inode == NULL)
+            return -1;
+        //ALWAYS_ASSERT(inode != NULL,
+        //              "tfs_link: directory files must have an inode");
+        
+        //Create new inode
+        int new_inode_num = inode_create(2);
+        if (new_inode_num == -1)
+            return -1;
+
+        //Point the new inode to the target inode(this creates the hard link)
+        inode_t *new_inode = inode_get(new_inode_num);
+        new_inode->target_inode = inode;
+
+        //Increase hard link counter
+        inode->i_link_counter++;
+        
+        //Add the new node (already linked with target) to the directory containing the link name
+        if (add_dir_entry(new_inode, link_name, new_inode_num) == -1)
+            return -1;
+        
+    }
+    else
+        return -1;
+
+    return 0;
+
+
 }
 
 int tfs_close(int fhandle) {
@@ -221,7 +254,11 @@ ssize_t tfs_read(int fhandle, void *buffer, size_t len) {
     }
 
     if (to_read > 0) {
-        void *block = data_block_get(inode->i_data_block);
+        void *block;
+        if (inode->i_node_type == T_LINK)
+            block = data_block_get(inode->target_inode->i_data_block);
+        else
+            block = data_block_get(inode->i_data_block);
         ALWAYS_ASSERT(block != NULL, "tfs_read: data block deleted mid-read");
 
         // Perform the actual read

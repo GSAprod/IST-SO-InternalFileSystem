@@ -205,6 +205,8 @@ int inode_create(inode_type i_type) {
     insert_delay(); // simulate storage access delay (to inode)
 
     inode->i_node_type = i_type;
+    //Hard link counter initialized
+    inode->i_link_counter = 1;
     switch (i_type) {
     case T_DIRECTORY: {
         // Initializes directory (filling its block with empty entries, labeled
@@ -232,10 +234,12 @@ int inode_create(inode_type i_type) {
         }
     } break;
     case T_FILE:
+    case T_LINK:
         // In case of a new file, simply sets its size to 0
         inode_table[inumber].i_size = 0;
         inode_table[inumber].i_data_block = -1;
         break;
+        
     default:
         PANIC("inode_create: unknown file type");
     }
