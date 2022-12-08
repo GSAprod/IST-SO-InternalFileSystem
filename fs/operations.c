@@ -90,6 +90,8 @@ int tfs_open(char const *name, tfs_file_mode_t mode) {
         inode_t *inode = inode_get(inum);
         ALWAYS_ASSERT(inode != NULL,
                       "tfs_open: directory files must have an inode");
+        if (inode->i_node_type == T_LINK)
+            inode = inode->target_inode;
 
         // Truncate (if requested)
         if (mode & TFS_O_TRUNC) {
@@ -171,7 +173,7 @@ int tfs_link(char const *target, char const *link_name) {
         inode->i_link_counter++;
         
         //Add the new node (already linked with target) to the directory containing the link name
-        if (add_dir_entry(new_inode, link_name, new_inode_num) == -1)
+        if (add_dir_entry(root_dir_inode, link_name+1, new_inode_num) == -1)
             return -1;
         
     }
@@ -211,6 +213,9 @@ ssize_t tfs_write(int fhandle, void const *buffer, size_t to_write) {
     }
 
     if (to_write > 0) {
+        if (inode->i_node_type == T_LINK)
+            inode = inode->target_inode;
+        
         if (inode->i_size == 0) {
             // If empty file, allocate new block
             int bnum = data_block_alloc();
@@ -246,6 +251,8 @@ ssize_t tfs_read(int fhandle, void *buffer, size_t len) {
     // From the open file table entry, we get the inode
     inode_t const *inode = inode_get(file->of_inumber);
     ALWAYS_ASSERT(inode != NULL, "tfs_read: inode of open file deleted");
+    if (inode->i_node_type == T_LINK)
+            inode = inode->target_inode;
 
     // Determine how many bytes to read
     size_t to_read = inode->i_size - file->of_offset;
@@ -254,11 +261,8 @@ ssize_t tfs_read(int fhandle, void *buffer, size_t len) {
     }
 
     if (to_read > 0) {
-        void *block;
-        if (inode->i_node_type == T_LINK)
-            block = data_block_get(inode->target_inode->i_data_block);
-        else
-            block = data_block_get(inode->i_data_block);
+        
+        void *block = data_block_get(inode->i_data_block);
         ALWAYS_ASSERT(block != NULL, "tfs_read: data block deleted mid-read");
 
         // Perform the actual read
