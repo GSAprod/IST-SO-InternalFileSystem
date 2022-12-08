@@ -90,8 +90,22 @@ int tfs_open(char const *name, tfs_file_mode_t mode) {
         inode_t *inode = inode_get(inum);
         ALWAYS_ASSERT(inode != NULL,
                       "tfs_open: directory files must have an inode");
+
         if (inode->i_node_type == T_LINK)
             inode = inode->target_inode;
+
+        else if(inode->i_node_type == T_SYMLINK) {
+            // Gets the name of the target from the data block of the symbolic link
+            char buffer[inode->i_size];
+            void *block = data_block_get(inode->i_data_block);
+            memcpy(buffer, block, sizeof(buffer));
+
+            // Searches for the inode with the name of the target
+            int aux_inum = tfs_lookup(buffer, root_dir_inode);
+            inode = inode_get(aux_inum);
+            inum = aux_inum;
+        }
+
 
         // Truncate (if requested)
         if (mode & TFS_O_TRUNC) {
@@ -135,15 +149,49 @@ int tfs_open(char const *name, tfs_file_mode_t mode) {
 }
 
 int tfs_sym_link(char const *target, char const *link_name) {
-    (void)target;
-    (void)link_name;
-    // ^ this is a trick to keep the compiler from complaining about unused
-    // variables. TODO: remove
+    // Checks if the target path name is valid
+    if (!valid_pathname(target)) {
+        return -1;
+    }
 
-    PANIC("TODO: tfs_sym_link");
+    inode_t *root_dir_inode = inode_get(ROOT_DIR_INUM);
+    ALWAYS_ASSERT(root_dir_inode != NULL,
+                  "tfs_open: root dir inode must exist");
+    //int inum = tfs_lookup(target, root_dir_inode);
+
+    int link_inum = inode_create(T_SYMLINK);
+    if(link_inum == -1) {
+        return -1;
+    }
+
+    inode_t* link_inode = inode_get(link_inum);
+    int link_data_block = data_block_alloc();
+    if(link_data_block == -1) 
+        return -1;
+
+    link_inode->i_data_block = link_data_block;
+    void *block = data_block_get(link_data_block);
+
+    int count = 1;
+    while(target[count] != '\0') {
+        count++;
+    }
+
+    memcpy(block, target, (size_t) count);
+    link_inode->i_size = (size_t) count;
+
+    //Add the new node (already linked with target) to the directory containing the link name
+    if (add_dir_entry(root_dir_inode, link_name+1, link_inum) == -1)
+        return -1;
+
+    return 0;
 }
 
 int tfs_link(char const *target, char const *link_name) {
+    // Checks if the target path name is valid
+    if (!valid_pathname(target)) {
+        return -1;
+    }
 
     inode_t *root_dir_inode = inode_get(ROOT_DIR_INUM);
     if (root_dir_inode == NULL)
@@ -161,7 +209,7 @@ int tfs_link(char const *target, char const *link_name) {
         //              "tfs_link: directory files must have an inode");
         
         //Create new inode
-        int new_inode_num = inode_create(2);
+        int new_inode_num = inode_create(T_LINK);
         if (new_inode_num == -1)
             return -1;
 
@@ -181,8 +229,6 @@ int tfs_link(char const *target, char const *link_name) {
         return -1;
 
     return 0;
-
-
 }
 
 int tfs_close(int fhandle) {
