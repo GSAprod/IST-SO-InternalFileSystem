@@ -359,7 +359,7 @@ int tfs_copy_from_external_fs(char const *source_path, char const *dest_path) {
     }
 
     /* Creates a new file on the TecnicoFS API */
-    int internalFd = tfs_open(dest_path, TFS_O_CREAT);
+    int internalFd = tfs_open(dest_path, TFS_O_CREAT | TFS_O_TRUNC);
     if (internalFd == -1) {
         return -1;
     }
