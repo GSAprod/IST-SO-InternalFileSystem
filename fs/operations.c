@@ -91,20 +91,13 @@ int tfs_open(char const *name, tfs_file_mode_t mode) {
         ALWAYS_ASSERT(inode != NULL,
                       "tfs_open: directory files must have an inode");
 
-        if (inode->i_node_type == T_LINK)
-            inode = inode->target_inode;
-
-        else if(inode->i_node_type == T_SYMLINK) {
+        if(inode->i_node_type == T_SYMLINK) {
             // Gets the name of the target from the target name of the symlink inode
             char buffer[strlen(inode->target_name)];
             strcpy(buffer, inode->target_name);
 
             // Searches for the inode with the name of the target
-            int aux_inum = tfs_lookup(buffer, root_dir_inode);
-            if (aux_inum == -1)
-                return -1;
-            inode = inode_get(aux_inum);
-            inum = aux_inum;
+            return tfs_open(buffer, mode);
         }
 
 
@@ -191,21 +184,12 @@ int tfs_link(char const *target, char const *link_name) {
         inode_t *inode = inode_get(inum);
         if (inode == NULL)
             return -1;
-        
-        //Create new inode
-        int new_inode_num = inode_create(T_LINK);
-        if (new_inode_num == -1)
-            return -1;
-
-        //Point the new inode to the target inode(this creates the hard link)
-        inode_t *new_inode = inode_get(new_inode_num);
-        new_inode->target_inode = inode;
 
         //Increase hard link counter
         inode->i_link_counter++;
         
         //Add the new node (already linked with target) to the directory containing the link name
-        if (add_dir_entry(root_dir_inode, link_name+1, new_inode_num) == -1)
+        if (add_dir_entry(root_dir_inode, link_name+1, inum) == -1)
             return -1;
         
     }
@@ -243,8 +227,6 @@ ssize_t tfs_write(int fhandle, void const *buffer, size_t to_write) {
     }
 
     if (to_write > 0) {
-        if (inode->i_node_type == T_LINK)
-            inode = inode->target_inode;
         
         if (inode->i_size == 0) {
             // If empty file, allocate new block
@@ -281,8 +263,6 @@ ssize_t tfs_read(int fhandle, void *buffer, size_t len) {
     // From the open file table entry, we get the inode
     inode_t const *inode = inode_get(file->of_inumber);
     ALWAYS_ASSERT(inode != NULL, "tfs_read: inode of open file deleted");
-    if (inode->i_node_type == T_LINK)
-            inode = inode->target_inode;
 
     // Determine how many bytes to read
     size_t to_read = inode->i_size - file->of_offset;
@@ -320,29 +300,17 @@ int tfs_unlink(char const *target) {
         inode_t *inode = inode_get(inum);
 
         if (inode->i_node_type == T_SYMLINK) {
-            clear_dir_entry(inode, target);
-            free(inode->target_name);
+            clear_dir_entry(root_dir_inode, target+1);
+            free(inode->target_inode);
             inode_delete(inum);
         }
 
         if (inode->i_node_type == T_FILE) {
-            clear_dir_entry(inode, target);
-            inode_delete(inum);
+            clear_dir_entry(root_dir_inode, target+1);
+            inode->i_link_counter--;
+            if (inode->i_link_counter == 0) 
+                inode_delete(inum);
         }
-
-        //switch (inode->i_node_type) {
-        //    case T_SYMLINK:
-        //        clear_dir_entry(inode, target);
-        //        free(inode->target_name);
-        //        inode_delete(inum);
-        //        break;
-        //    case T_DIRECTORY:
-        //    case T_FILE:
-        //    case T_LINK:
-        //    default:
-        //        return -1;
-        //}
-
     }
     else
         return -1;
