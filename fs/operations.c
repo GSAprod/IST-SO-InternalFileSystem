@@ -97,14 +97,7 @@ int tfs_open(char const *name, tfs_file_mode_t mode) {
             void *block = data_block_get(inode->i_data_block);
             memcpy(buffer, block, sizeof(buffer));
 
-            // Searches for the inode with the name of the target
-            int aux_inum = tfs_lookup(buffer, root_dir_inode);
-            if (aux_inum == -1)
-                return -1;
-
-            // The inode to open, will be the target inode
-            inode = inode_get(aux_inum);
-            inum = aux_inum;
+            return tfs_open(buffer, mode);
         }
 
 
