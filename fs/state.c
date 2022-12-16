@@ -125,6 +125,7 @@ int state_init(tfs_params params) {
 
     for (size_t i = 0; i < INODE_TABLE_SIZE; i++) {
         freeinode_ts[i] = FREE;
+        pthread_rwlock_init(&(inode_table[i].rwlock_inode), NULL);
     }
 
     for (size_t i = 0; i < DATA_BLOCKS; i++) {
@@ -133,6 +134,7 @@ int state_init(tfs_params params) {
 
     for (size_t i = 0; i < MAX_OPEN_FILES; i++) {
         free_open_file_entries[i] = FREE;
+        pthread_rwlock_init(&(open_file_table[i].rwlock_open_file_entry), NULL);
     }
 
     if(pthread_mutex_init(&mutex_freeinode_ts, NULL) == -1) 
@@ -151,6 +153,15 @@ int state_init(tfs_params params) {
  * Returns 0 if succesful, -1 otherwise.
  */
 int state_destroy(void) {
+
+    for (size_t i = 0; i < INODE_TABLE_SIZE; i++) {
+        pthread_rwlock_destroy(&(inode_table[i].rwlock_inode));
+    }
+
+    for (size_t i = 0; i < MAX_OPEN_FILES; i++) {
+        pthread_rwlock_destroy(&(open_file_table[i].rwlock_open_file_entry));
+    }
+    
     free(inode_table);
     free(freeinode_ts);
     free(fs_data);
@@ -233,7 +244,6 @@ int inode_create(inode_type i_type) {
     //Hard link counter initialized
     inode->i_link_counter = 1;
 
-    pthread_rwlock_init(&(inode->rwlock_inode), NULL);
     switch (i_type) {
     case T_DIRECTORY: {
         // Initializes directory (filling its block with empty entries, labeled
@@ -289,8 +299,6 @@ void inode_delete(int inumber) {
 
     ALWAYS_ASSERT(freeinode_ts[inumber] == TAKEN,
                   "inode_delete: inode already freed");
-
-    pthread_rwlock_destroy(&(inode_table[inumber].rwlock_inode));
 
     if (inode_table[inumber].i_size > 0) {
         data_block_free(inode_table[inumber].i_data_block);
@@ -506,8 +514,6 @@ int add_to_open_file_table(int inumber, size_t offset) {
             free_open_file_entries[i] = TAKEN;
             open_file_table[i].of_inumber = inumber;
             open_file_table[i].of_offset = offset;
-            pthread_rwlock_init(&(open_file_table[i].rwlock_open_file_entry), NULL);
-
             return i;
         }
     }
@@ -528,7 +534,6 @@ void remove_from_open_file_table(int fhandle) {
     ALWAYS_ASSERT(free_open_file_entries[fhandle] == TAKEN,
                   "remove_from_open_file_table: file handle must be taken");
 
-    pthread_rwlock_destroy(&(open_file_table[fhandle].rwlock_open_file_entry));
     free_open_file_entries[fhandle] = FREE;
 }
 
