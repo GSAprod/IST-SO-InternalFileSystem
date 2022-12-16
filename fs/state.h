@@ -15,6 +15,7 @@
 typedef struct {
     char d_name[MAX_FILE_NAME];
     int d_inumber;
+    pthread_rwlock_t rwlock_dir_entry;
 } dir_entry_t;
 
 typedef enum { T_FILE, T_DIRECTORY, T_SYMLINK } inode_type;
@@ -28,6 +29,8 @@ typedef struct inode_t{
     size_t i_size;
     int i_data_block;
     int i_link_counter;
+
+    pthread_rwlock_t* rwlock_inode;
     // in a more complete FS, more fields could exist here
 } inode_t;
 
@@ -39,6 +42,7 @@ typedef enum { FREE = 0, TAKEN = 1 } allocation_state_t;
 typedef struct {
     int of_inumber;
     size_t of_offset;
+    pthread_rwlock_t rwlock_open_file_entry;
 } open_file_entry_t;
 
 int state_init(tfs_params);

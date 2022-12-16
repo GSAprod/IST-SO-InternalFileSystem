@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <pthread.h>
 
 /*
  * Persistent FS state
@@ -18,15 +19,25 @@ static tfs_params fs_params;
 static inode_t *inode_table;
 static allocation_state_t *freeinode_ts;
 
+// Mutexes for inode table
+static pthread_mutex_t mutex_freeinode_ts;
+
 // Data blocks
 static char *fs_data; // # blocks * block size
 static allocation_state_t *free_blocks;
+
+// Mutexes for data blocks
+static pthread_mutex_t mutex_free_blocks;
 
 /*
  * Volatile FS state
  */
 static open_file_entry_t *open_file_table;
 static allocation_state_t *free_open_file_entries;
+
+// Mutexes for open file table
+static pthread_mutex_t mutex_free_open_file_entries;
+
 
 // Convenience macros
 #define INODE_TABLE_SIZE (fs_params.max_inode_count)
@@ -124,6 +135,13 @@ int state_init(tfs_params params) {
         free_open_file_entries[i] = FREE;
     }
 
+    if(pthread_mutex_init(&mutex_freeinode_ts, NULL) == -1) 
+        return -1;
+    if(pthread_mutex_init(&mutex_free_blocks, NULL) == -1)
+        return -1;
+    if(pthread_mutex_init(&mutex_free_open_file_entries, NULL) == -1)
+        return -1;
+
     return 0;
 }
 
@@ -146,6 +164,13 @@ int state_destroy(void) {
     free_blocks = NULL;
     open_file_table = NULL;
     free_open_file_entries = NULL;
+
+    if(pthread_mutex_destroy(&mutex_freeinode_ts) == -1)
+        return -1;
+    if(pthread_mutex_destroy(&mutex_free_blocks) == -1)
+        return -1;
+    if(pthread_mutex_destroy(&mutex_free_open_file_entries) == -1)
+        return -1;
 
     return 0;
 }
@@ -207,6 +232,16 @@ int inode_create(inode_type i_type) {
     inode->i_node_type = i_type;
     //Hard link counter initialized
     inode->i_link_counter = 1;
+
+    if(pthread_rwlock_init(inode->rwlock_inode, NULL) == -1) {
+        // ensure fields are initialized
+        inode->i_size = 0;
+        inode->i_data_block = -1;
+        inode->rwlock_inode = NULL;
+
+        inode_delete(inumber);
+        return -1;
+    }
     switch (i_type) {
     case T_DIRECTORY: {
         // Initializes directory (filling its block with empty entries, labeled
@@ -216,6 +251,7 @@ int inode_create(inode_type i_type) {
             // ensure fields are initialized
             inode->i_size = 0;
             inode->i_data_block = -1;
+            inode->rwlock_inode = NULL;
 
             // run regular deletion process
             inode_delete(inumber);
@@ -262,6 +298,10 @@ void inode_delete(int inumber) {
 
     ALWAYS_ASSERT(freeinode_ts[inumber] == TAKEN,
                   "inode_delete: inode already freed");
+
+    if (inode_table[inumber].rwlock_inode != NULL) {
+        pthread_rwlock_destroy(inode_table[inumber].rwlock_inode);
+    }
 
     if (inode_table[inumber].i_size > 0) {
         data_block_free(inode_table[inumber].i_data_block);
