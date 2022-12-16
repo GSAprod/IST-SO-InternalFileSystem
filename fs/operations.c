@@ -62,7 +62,10 @@ static bool valid_pathname(char const *name) {
  * Returns the inumber of the file, -1 if unsuccessful.
  */
 static int tfs_lookup(char const *name, inode_t const *root_inode) {
-    // TODO: assert that root_inode is the root directory
+    // assert that root_inode is the root directory
+    if (root_inode != inode_get(ROOT_DIR_INUM))
+        return -1;
+    
     if (!valid_pathname(name)) {
         return -1;
     }
@@ -353,13 +356,13 @@ int tfs_copy_from_external_fs(char const *source_path, char const *dest_path) {
     memset(buffer, 0, sizeof(buffer));
 
     /* Read the content of the source file and write it onto the destination file */
-    int bytes_written = -1, bytes_read = -1; // TODO: Check initial values
+    int bytes_written = -1, bytes_read = -1;
 
     while(bytes_written && bytes_read) {
         bytes_read = (int) fread(buffer, (size_t) sizeof(char), (size_t) sizeof(buffer) - 1, externalFd);
-        bytes_written = (int) tfs_write(internalFd, buffer, (size_t) bytes_read); // TODO: Check if it works
+        bytes_written = (int) tfs_write(internalFd, buffer, (size_t) bytes_read);
     }
-    // TODO: Add error handling
+
 
     if (fclose(externalFd) == EOF) return -1;
     return tfs_close(internalFd);
