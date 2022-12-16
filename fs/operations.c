@@ -185,6 +185,9 @@ int tfs_link(char const *target, char const *link_name) {
         if (inode == NULL)
             return -1;
 
+        if (inode->i_node_type == T_SYMLINK)
+            return -1;
+
         //Increase hard link counter
         inode->i_link_counter++;
         
