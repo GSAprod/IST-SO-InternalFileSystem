@@ -233,15 +233,7 @@ int inode_create(inode_type i_type) {
     //Hard link counter initialized
     inode->i_link_counter = 1;
 
-    if(pthread_rwlock_init(inode->rwlock_inode, NULL) == -1) {
-        // ensure fields are initialized
-        inode->i_size = 0;
-        inode->i_data_block = -1;
-        inode->rwlock_inode = NULL;
-
-        inode_delete(inumber);
-        return -1;
-    }
+    pthread_rwlock_init(&(inode->rwlock_inode), NULL);
     switch (i_type) {
     case T_DIRECTORY: {
         // Initializes directory (filling its block with empty entries, labeled
@@ -251,7 +243,6 @@ int inode_create(inode_type i_type) {
             // ensure fields are initialized
             inode->i_size = 0;
             inode->i_data_block = -1;
-            inode->rwlock_inode = NULL;
 
             // run regular deletion process
             inode_delete(inumber);
@@ -299,9 +290,7 @@ void inode_delete(int inumber) {
     ALWAYS_ASSERT(freeinode_ts[inumber] == TAKEN,
                   "inode_delete: inode already freed");
 
-    if (inode_table[inumber].rwlock_inode != NULL) {
-        pthread_rwlock_destroy(inode_table[inumber].rwlock_inode);
-    }
+    pthread_rwlock_destroy(&(inode_table[inumber].rwlock_inode));
 
     if (inode_table[inumber].i_size > 0) {
         data_block_free(inode_table[inumber].i_data_block);
@@ -352,6 +341,7 @@ int clear_dir_entry(inode_t *inode, char const *sub_name) {
     for (size_t i = 0; i < MAX_DIR_ENTRIES; i++) {
         if (!strcmp(dir_entry[i].d_name, sub_name)) {
             dir_entry[i].d_inumber = -1;
+            pthread_rwlock_destroy(&(dir_entry[i].rwlock_dir_entry));
             memset(dir_entry[i].d_name, 0, MAX_FILE_NAME);
             return 0;
         }
@@ -393,6 +383,7 @@ int add_dir_entry(inode_t *inode, char const *sub_name, int sub_inumber) {
     for (size_t i = 0; i < MAX_DIR_ENTRIES; i++) {
         if (dir_entry[i].d_inumber == -1) {
             dir_entry[i].d_inumber = sub_inumber;
+            pthread_rwlock_init(&(dir_entry[i].rwlock_dir_entry), NULL);
             strncpy(dir_entry[i].d_name, sub_name, MAX_FILE_NAME - 1);
             dir_entry[i].d_name[MAX_FILE_NAME - 1] = '\0';
 
@@ -515,6 +506,7 @@ int add_to_open_file_table(int inumber, size_t offset) {
             free_open_file_entries[i] = TAKEN;
             open_file_table[i].of_inumber = inumber;
             open_file_table[i].of_offset = offset;
+            pthread_rwlock_init(&(open_file_table[i].rwlock_open_file_entry), NULL);
 
             return i;
         }
@@ -536,6 +528,7 @@ void remove_from_open_file_table(int fhandle) {
     ALWAYS_ASSERT(free_open_file_entries[fhandle] == TAKEN,
                   "remove_from_open_file_table: file handle must be taken");
 
+    pthread_rwlock_destroy(&(open_file_table[fhandle].rwlock_open_file_entry));
     free_open_file_entries[fhandle] = FREE;
 }
 
