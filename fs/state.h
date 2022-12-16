@@ -28,9 +28,6 @@ typedef struct inode_t{
     size_t i_size;
     int i_data_block;
     int i_link_counter;
-    char *target_name;
-    struct inode_t *target_inode;
-
     // in a more complete FS, more fields could exist here
 } inode_t;
 

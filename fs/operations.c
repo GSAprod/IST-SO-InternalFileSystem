@@ -92,12 +92,19 @@ int tfs_open(char const *name, tfs_file_mode_t mode) {
                       "tfs_open: directory files must have an inode");
 
         if(inode->i_node_type == T_SYMLINK) {
-            // Gets the name of the target from the target name of the symlink inode
-            char buffer[strlen(inode->target_name)];
-            strcpy(buffer, inode->target_name);
+            // Gets the name of the target from the data block of the symbolic link
+            char buffer[inode->i_size];
+            void *block = data_block_get(inode->i_data_block);
+            memcpy(buffer, block, sizeof(buffer));
 
             // Searches for the inode with the name of the target
-            return tfs_open(buffer, mode);
+            int aux_inum = tfs_lookup(buffer, root_dir_inode);
+            if (aux_inum == -1)
+                return -1;
+
+            // The inode to open, will be the target inode
+            inode = inode_get(aux_inum);
+            inum = aux_inum;
         }
 
 
@@ -156,10 +163,22 @@ int tfs_sym_link(char const *target, char const *link_name) {
     if(link_inum == -1) {
         return -1;
     }
+    inode_t *link_inode = inode_get(link_inum);
 
-    inode_t* link_inode = inode_get(link_inum);
-    link_inode->target_name = (char*) malloc(sizeof(char)*strlen(target));
-    strcpy(link_inode->target_name, target);
+    int link_data_block = data_block_alloc();
+    if(link_data_block == -1) 
+        return -1;
+
+    link_inode->i_data_block = link_data_block;
+    void *block = data_block_get(link_data_block);
+
+    int count = 1;
+    while(target[count] != '\0') {
+        count++;
+    }
+
+    memcpy(block, target, (size_t) count);
+    link_inode->i_size = (size_t) count;
 
     //Add the new node (already linked with target) to the directory containing the link name
     if (add_dir_entry(root_dir_inode, link_name+1, link_inum) == -1)
@@ -304,7 +323,8 @@ int tfs_unlink(char const *target) {
 
         if (inode->i_node_type == T_SYMLINK) {
             clear_dir_entry(root_dir_inode, target+1);
-            free(inode->target_inode);
+            if (inode->i_size > 0)
+                data_block_free(inode->i_data_block);
             inode_delete(inum);
         }
 
