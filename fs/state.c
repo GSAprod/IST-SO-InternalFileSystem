@@ -187,6 +187,10 @@ int state_destroy(void) {
  *   - No free slots in inode table.
  */
 static int inode_alloc(void) {
+    // Since this function iterates over various elements in the inode table, we should
+    // lock the entire table while this operation is ongoing.
+    pthread_mutex_lock(&mutex_freeinode_ts);
+
     for (size_t inumber = 0; inumber < INODE_TABLE_SIZE; inumber++) {
         if ((inumber * sizeof(allocation_state_t) % BLOCK_SIZE) == 0) {
             insert_delay(); // simulate storage access delay (to freeinode_ts)
@@ -197,11 +201,13 @@ static int inode_alloc(void) {
             //  Found a free entry, so takes it for the new inode
             freeinode_ts[inumber] = TAKEN;
 
+            pthread_mutex_unlock(&mutex_freeinode_ts);
             return (int)inumber;
         }
     }
 
     // no free inodes
+    pthread_mutex_unlock(&mutex_freeinode_ts);
     return -1;
 }
 
@@ -231,6 +237,9 @@ int inode_create(inode_type i_type) {
     inode_t *inode = &inode_table[inumber];
     insert_delay(); // simulate storage access delay (to inode)
 
+    /* Lock writing access to the inode */
+    pthread_rwlock_wrlock(&(inode->rwlock_inode));
+
     inode->i_node_type = i_type;
     //Hard link counter initialized
     inode->i_link_counter = 1;
@@ -244,14 +253,19 @@ int inode_create(inode_type i_type) {
             // ensure fields are initialized
             inode->i_size = 0;
             inode->i_data_block = -1;
-
+            
             // run regular deletion process
             inode_delete(inumber);
+
+            /* Unlock the inode so other threads can use it */
+            pthread_rwlock_unlock(&(inode->rwlock_inode));
             return -1;
         }
 
         inode_table[inumber].i_size = BLOCK_SIZE;
         inode_table[inumber].i_data_block = b;
+        /* Unlock the inode so other threads can use it */
+        pthread_rwlock_unlock(&(inode->rwlock_inode));
 
         dir_entry_t *dir_entry = (dir_entry_t *)data_block_get(b);
         ALWAYS_ASSERT(dir_entry != NULL,
@@ -266,6 +280,8 @@ int inode_create(inode_type i_type) {
         // In case of a new file, simply sets its size to 0
         inode_table[inumber].i_size = 0;
         inode_table[inumber].i_data_block = -1;
+        /* Unlock the inode so other threads can use it */
+        pthread_rwlock_unlock(&(inode->rwlock_inode));
         break;
         
     default:
@@ -291,6 +307,7 @@ void inode_delete(int inumber) {
     ALWAYS_ASSERT(freeinode_ts[inumber] == TAKEN,
                   "inode_delete: inode already freed");
 
+    /* This function assumes that the inode has been previously locked */
     if (inode_table[inumber].i_size > 0) {
         data_block_free(inode_table[inumber].i_data_block);
     }
@@ -311,6 +328,7 @@ inode_t *inode_get(int inumber) {
 
     insert_delay(); // simulate storage access delay to inode
     return &inode_table[inumber];
+    /* This function assumes that the inode will be locked for reading/writing */
 }
 
 /**
@@ -328,6 +346,7 @@ inode_t *inode_get(int inumber) {
  */
 int clear_dir_entry(inode_t *inode, char const *sub_name) {
     insert_delay();
+    /* This function assumes that the inode has been previously locked */
     if (inode->i_node_type != T_DIRECTORY) {
         return -1; // not a directory
     }
