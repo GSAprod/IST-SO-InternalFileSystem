@@ -26,6 +26,9 @@ static pthread_mutex_t mutex_freeinode_ts;
 static char *fs_data; // # blocks * block size
 static allocation_state_t *free_blocks;
 
+//Mutexes for data block table
+static pthread_mutex_t mutex_free_blocks;
+
 /*
  * Volatile FS state
  */
@@ -305,8 +308,10 @@ void inode_delete(int inumber) {
     if (inode_table[inumber].i_size > 0) {
         data_block_free(inode_table[inumber].i_data_block);
     }
-
+    
+    pthread_mutex_lock(&mutex_freeinode_ts);
     freeinode_ts[inumber] = FREE;
+    pthread_mutex_unlock(&mutex_freeinode_ts);
     /* This function assumes that the inode will be unlocked after this function is executed */
 }
 
@@ -346,6 +351,8 @@ int clear_dir_entry(inode_t *inode, char const *sub_name) {
         return -1; // not a directory
     }
 
+    pthread_rwlock_wrlock(&(inode->rwlock_inode));
+
     // Locates the block containing the entries of the directory
     dir_entry_t *dir_entry = (dir_entry_t *)data_block_get(inode->i_data_block);
     ALWAYS_ASSERT(dir_entry != NULL,
@@ -356,9 +363,11 @@ int clear_dir_entry(inode_t *inode, char const *sub_name) {
             dir_entry[i].d_inumber = -1;
             pthread_rwlock_destroy(&(dir_entry[i].rwlock_dir_entry));
             memset(dir_entry[i].d_name, 0, MAX_FILE_NAME);
+            pthread_rwlock_unlock(&(inode->rwlock_inode));
             return 0;
         }
     }
+    pthread_rwlock_unlock(&(inode->rwlock_inode));
     return -1; // sub_name not found
 }
 
@@ -423,7 +432,7 @@ int add_dir_entry(inode_t *inode, char const *sub_name, int sub_inumber) {
  *   - inode is not a directory inode.
  *   - Directory does not contain a file named sub_name.
  */
-int find_in_dir(inode_t const *inode, char const *sub_name) {
+int find_in_dir(inode_t *inode, char const *sub_name) {
     ALWAYS_ASSERT(inode != NULL, "find_in_dir: inode must be non-NULL");
     ALWAYS_ASSERT(sub_name != NULL, "find_in_dir: sub_name must be non-NULL");
 
@@ -431,6 +440,7 @@ int find_in_dir(inode_t const *inode, char const *sub_name) {
     if (inode->i_node_type != T_DIRECTORY) {
         return -1; // not a directory
     }
+    pthread_rwlock_wrlock(&(inode->rwlock_inode));
 
     // Locates the block containing the entries of the directory
     dir_entry_t *dir_entry = (dir_entry_t *)data_block_get(inode->i_data_block);
@@ -444,9 +454,11 @@ int find_in_dir(inode_t const *inode, char const *sub_name) {
             (strncmp(dir_entry[i].d_name, sub_name, MAX_FILE_NAME) == 0)) {
 
             int sub_inumber = dir_entry[i].d_inumber;
+            pthread_rwlock_unlock(&(inode->rwlock_inode));
             return sub_inumber;
         }
 
+    pthread_rwlock_unlock(&(inode->rwlock_inode));
     return -1; // entry not found
 }
 
@@ -459,6 +471,7 @@ int find_in_dir(inode_t const *inode, char const *sub_name) {
  *   - No free data blocks.
  */
 int data_block_alloc(void) {
+    pthread_mutex_lock(&mutex_free_blocks);
     for (size_t i = 0; i < DATA_BLOCKS; i++) {
         if (i * sizeof(allocation_state_t) % BLOCK_SIZE == 0) {
             insert_delay(); // simulate storage access delay to free_blocks
@@ -466,10 +479,12 @@ int data_block_alloc(void) {
 
         if (free_blocks[i] == FREE) {
             free_blocks[i] = TAKEN;
+            pthread_mutex_unlock(&mutex_free_blocks);
 
             return (int)i;
         }
     }
+    pthread_mutex_unlock(&mutex_free_blocks);
     return -1;
 }
 
@@ -485,7 +500,9 @@ void data_block_free(int block_number) {
 
     insert_delay(); // simulate storage access delay to free_blocks
 
+    pthread_mutex_lock(&mutex_free_blocks);
     free_blocks[block_number] = FREE;
+    pthread_mutex_unlock(&mutex_free_blocks);
 }
 
 /**
