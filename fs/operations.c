@@ -110,6 +110,7 @@ int tfs_open(char const *name, tfs_file_mode_t mode) {
         // Truncate (if requested)
         if (mode & TFS_O_TRUNC) {
             if (inode->i_size > 0) {
+                pthread_rwlock_unlock(&(inode->rwlock_inode));
                 pthread_rwlock_wrlock(&(inode->rwlock_inode));
                 data_block_free(inode->i_data_block);
                 inode->i_size = 0;
@@ -274,6 +275,7 @@ ssize_t tfs_write(int fhandle, void const *buffer, size_t to_write) {
                 return -1; // no space
             }
 
+            pthread_rwlock_unlock(&(inode->rwlock_inode));
             pthread_rwlock_wrlock(&(inode->rwlock_inode));
             inode->i_data_block = bnum;
         }
@@ -285,9 +287,11 @@ ssize_t tfs_write(int fhandle, void const *buffer, size_t to_write) {
         memcpy(block + file->of_offset, buffer, to_write);
 
         // The offset associated with the file handle is incremented accordingly
+        pthread_rwlock_unlock(&(file->rwlock_open_file_entry));
         pthread_rwlock_wrlock(&(file->rwlock_open_file_entry));
         file->of_offset += to_write;
         if (file->of_offset > inode->i_size) {
+            pthread_rwlock_unlock(&(inode->rwlock_inode));
             pthread_rwlock_wrlock(&(inode->rwlock_inode));
             inode->i_size = file->of_offset;
         }
@@ -324,6 +328,7 @@ ssize_t tfs_read(int fhandle, void *buffer, size_t len) {
         // Perform the actual read
         memcpy(buffer, block + file->of_offset, to_read);
         // The offset associated with the file handle is incremented accordingly
+        pthread_rwlock_unlock(&(file->rwlock_open_file_entry));
         pthread_rwlock_wrlock(&(file->rwlock_open_file_entry));
         file->of_offset += to_read;
     }
