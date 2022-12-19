@@ -43,6 +43,7 @@ void *write_to_path_fn(void* arg) {
 
 void print_file_contents(char const *path) {
     char buffer[600];
+    memset(buffer, 0, sizeof(buffer));
 
     printf("File contents: \n");
 
