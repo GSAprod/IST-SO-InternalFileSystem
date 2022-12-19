@@ -7,6 +7,8 @@
 #include <unistd.h>
 #include <errno.h>
 #include <assert.h>
+#include <unistd.h>
+
 
 #define APPEND_CONTENTS_FILE ("123")
 #define APPEND_CONTENTS_HARDLINK ("456")
@@ -23,47 +25,28 @@ uint8_t const file_contents[] = "123456789123456789123456789";
 void *write_to_path_fn(void* arg) {
     write_args_t const *args = (write_args_t const *)arg;
 
-    size_t total_writes = 0;
     for(size_t i = 0; i < args->n_writes; i++) {
         int f = tfs_open(args->path, TFS_O_APPEND);
 
         tfs_write(f, args->text, strlen(args->text));
 
+        //Wait time to guarantee that all threads are running at the same time
+        //This also guarantees that the output is the same every time
+        //This avoid threads to write in random order, making it possible to predict output
         sleep(1);
 
         tfs_close(f);
-
-        total_writes++;
-
-        printf("Thread wrote %zd times into path \"%s\"\n", total_writes, args->path);
     }
-    printf("Thread stopped writing into path \"%s\"\n", args->path);
+
     return NULL;
-}
-
-void print_file_contents(char const *path) {
-    char buffer[600];
-    memset(buffer, 0, sizeof(buffer));
-
-    printf("File contents: \n");
-
-    int fd = tfs_open(path, TFS_O_CREAT);
-    
-    tfs_read(fd, buffer, sizeof(buffer) - 1);
-    printf("%s", buffer);
-
-    printf("\n");
-    tfs_close(fd);
 }
 
 void assert_contents_ok(char const *path) {
     int f = tfs_open(path, 0);
     assert(f != -1);
 
-    uint8_t buffer[sizeof(file_contents)];
-    ssize_t r = tfs_read(f, buffer, sizeof(buffer));
-    printf("aqui - %s\n",buffer);
-    assert(r == sizeof(buffer));
+    uint8_t buffer[sizeof(file_contents)-1];
+    assert(tfs_read(f, buffer, sizeof(buffer)) != -1);
     assert(memcmp(buffer, file_contents, sizeof(buffer)) == 0);
 
     assert(tfs_close(f) != -1);
@@ -119,8 +102,6 @@ int main() {
     pthread_join(tid[1], NULL);
     pthread_join(tid[2], NULL);
 
-    printf("FINISH!!!\n");
-    print_file_contents(file_path);
     assert_contents_ok(file_path);
     tfs_destroy();
 
