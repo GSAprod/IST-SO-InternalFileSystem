@@ -231,6 +231,7 @@ int inode_create(inode_type i_type) {
     }
 
     inode_t *inode = &inode_table[inumber];
+    pthread_rwlock_wrlock(&(inode->rwlock_inode));
     insert_delay(); // simulate storage access delay (to inode)
 
     /* Lock writing access to the inode */
@@ -254,7 +255,7 @@ int inode_create(inode_type i_type) {
             inode_delete(inumber);
 
             /* Unlock the inode so other threads can use it */
-            //pthread_rwlock_unlock(&(inode->rwlock_inode));
+            pthread_rwlock_unlock(&(inode->rwlock_inode));
             return -1;
         }
 
@@ -264,12 +265,14 @@ int inode_create(inode_type i_type) {
         //pthread_rwlock_unlock(&(inode->rwlock_inode));
 
         dir_entry_t *dir_entry = (dir_entry_t *)data_block_get(b);
+        pthread_rwlock_wrlock(&(dir_entry->rwlock_dir_entry));
         ALWAYS_ASSERT(dir_entry != NULL,
                       "inode_create: data block freed while in use");
 
         for (size_t i = 0; i < MAX_DIR_ENTRIES; i++) {
             dir_entry[i].d_inumber = -1;
         }
+        pthread_rwlock_unlock(&(dir_entry->rwlock_dir_entry));
     } break;
     case T_FILE:
     case T_SYMLINK:
@@ -277,7 +280,7 @@ int inode_create(inode_type i_type) {
         inode_table[inumber].i_size = 0;
         inode_table[inumber].i_data_block = -1;
         /* Unlock the inode so other threads can use it */
-        //pthread_rwlock_unlock(&(inode->rwlock_inode));
+        pthread_rwlock_unlock(&(inode->rwlock_inode));
         break;
         
     default:
@@ -352,23 +355,23 @@ int clear_dir_entry(inode_t *inode, char const *sub_name) {
         return -1; // not a directory
     }
 
-    //pthread_rwlock_wrlock(&(inode->rwlock_inode));
 
     // Locates the block containing the entries of the directory
     dir_entry_t *dir_entry = (dir_entry_t *)data_block_get(inode->i_data_block);
+    //pthread_rwlock_wrlock(&(dir_entry->rwlock_dir_entry));
     ALWAYS_ASSERT(dir_entry != NULL,
                   "clear_dir_entry: directory must have a data block");
 
     for (size_t i = 0; i < MAX_DIR_ENTRIES; i++) {
         if (!strcmp(dir_entry[i].d_name, sub_name)) {
             dir_entry[i].d_inumber = -1;
-            //pthread_rwlock_destroy(&(dir_entry[i].rwlock_dir_entry));
+            pthread_rwlock_destroy(&(dir_entry[i].rwlock_dir_entry));
             memset(dir_entry[i].d_name, 0, MAX_FILE_NAME);
-            //pthread_rwlock_unlock(&(inode->rwlock_inode));
+            //pthread_rwlock_unlock(&(dir_entry->rwlock_dir_entry));
             return 0;
         }
     }
-    //pthread_rwlock_unlock(&(inode->rwlock_inode));
+    //pthread_rwlock_unlock(&(dir_entry->rwlock_dir_entry));
     return -1; // sub_name not found
 }
 
@@ -396,10 +399,10 @@ int add_dir_entry(inode_t *inode, char const *sub_name, int sub_inumber) {
     if (inode->i_node_type != T_DIRECTORY) {
         return -1; // not a directory
     }
-    //pthread_rwlock_wrlock(&(inode->rwlock_inode));
 
     // Locates the block containing the entries of the directory
     dir_entry_t *dir_entry = (dir_entry_t *)data_block_get(inode->i_data_block);
+    
     ALWAYS_ASSERT(dir_entry != NULL,
                   "add_dir_entry: directory must have a data block");
 
@@ -411,12 +414,11 @@ int add_dir_entry(inode_t *inode, char const *sub_name, int sub_inumber) {
             pthread_rwlock_init(&(dir_entry[i].rwlock_dir_entry), NULL);
             strncpy(dir_entry[i].d_name, sub_name, MAX_FILE_NAME - 1);
             dir_entry[i].d_name[MAX_FILE_NAME - 1] = '\0';
-            //pthread_rwlock_unlock(&(inode->rwlock_inode));
-
+    
             return 0;
         }
     }
-    //pthread_rwlock_unlock(&(inode->rwlock_inode));
+    
     return -1; // no space for entry
 }
 
@@ -445,6 +447,7 @@ int find_in_dir(inode_t *inode, char const *sub_name) {
 
     // Locates the block containing the entries of the directory
     dir_entry_t *dir_entry = (dir_entry_t *)data_block_get(inode->i_data_block);
+    pthread_rwlock_wrlock(&(dir_entry->rwlock_dir_entry));
     ALWAYS_ASSERT(dir_entry != NULL,
                   "find_in_dir: directory inode must have a data block");
 
@@ -455,11 +458,10 @@ int find_in_dir(inode_t *inode, char const *sub_name) {
             (strncmp(dir_entry[i].d_name, sub_name, MAX_FILE_NAME) == 0)) {
 
             int sub_inumber = dir_entry[i].d_inumber;
-            //pthread_rwlock_unlock(&(inode->rwlock_inode));
+            pthread_rwlock_unlock(&(dir_entry->rwlock_dir_entry));
             return sub_inumber;
         }
-
-    //pthread_rwlock_unlock(&(inode->rwlock_inode));
+    pthread_rwlock_unlock(&(dir_entry->rwlock_dir_entry));
     return -1; // entry not found
 }
 

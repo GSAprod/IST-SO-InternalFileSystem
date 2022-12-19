@@ -25,6 +25,8 @@ void *write_to_path_fn(void* arg) {
 
         tfs_write(f, APPEND_CONTENTS_FILE, strlen(APPEND_CONTENTS_FILE));
 
+        sleep(1);
+
         tfs_close(f);
 
         total_writes++;
