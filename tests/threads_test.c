@@ -27,6 +27,8 @@ void *write_to_path_fn(void* arg) {
 
         tfs_close(f);
 
+        total_writes++;
+
         printf("Thread wrote %zd times into path \"%s\"\n", total_writes, args->path);
     }
     printf("Thread stopped writing into path \"%s\"\n", args->path);
@@ -49,17 +51,14 @@ void print_file_contents(char *path) {
     tfs_close(fd);
 }
 
-int main(int argc, char const *argv[]) {
+int main() {
     char *file_path = "/f1";
     char *hardlink_path = "/l1";
     char *symlink_path = "/l2";
 
     pthread_t tid[3];
 
-    ssize_t total_ops = 0;
-    if (argc > 1) {
-        total_ops = atoll(argv[1]);
-    }
+    ssize_t total_ops = 3;
 
     tfs_init(NULL);
 
@@ -102,6 +101,7 @@ int main(int argc, char const *argv[]) {
 
     printf("FINISH!!!\n");
     print_file_contents(file_path);
+    tfs_destroy();
 
     return 0;
 }
