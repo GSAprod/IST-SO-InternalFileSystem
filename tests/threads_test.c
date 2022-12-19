@@ -11,6 +11,7 @@
 #define APPEND_CONTENTS_HARDLINK ("abc")
 
 typedef struct {
+    int num;
     ssize_t n_writes;
     char *path;
     char *text;
@@ -23,7 +24,7 @@ void *write_to_path_fn(void* arg) {
     for(size_t i = 0; i < args->n_writes; i++) {
         int f = tfs_open(args->path, TFS_O_APPEND);
 
-        tfs_write(f, APPEND_CONTENTS_FILE, strlen(APPEND_CONTENTS_FILE));
+        tfs_write(f, args->text, strlen(args->text) + 1);
 
         sleep(1);
 
@@ -31,9 +32,9 @@ void *write_to_path_fn(void* arg) {
 
         total_writes++;
 
-        printf("Thread wrote %zd times into path \"%s\"\n", total_writes, args->path);
+        printf("(%d) Thread wrote %zd times into path \"%s\"\n", args->num, total_writes, args->path);
     }
-    printf("Thread stopped writing into path \"%s\"\n", args->path);
+    printf("(%d) Thread stopped writing into path \"%s\"\n", args->num, args->path);
     return NULL;
 }
 
@@ -55,8 +56,6 @@ void print_file_contents(char *path) {
 
 int main() {
     char *file_path = "/f1";
-    char *hardlink_path = "/l1";
-    char *symlink_path = "/l2";
 
     pthread_t tid[3];
 
@@ -68,31 +67,25 @@ int main() {
     int f1 = tfs_open(file_path, TFS_O_CREAT);
     tfs_close(f1);
 
-    // Create a hard link on the file
-    tfs_link(file_path, hardlink_path);
-
-    // Create a soft link on the file
-    tfs_sym_link(file_path, symlink_path);
-
     // Create all arguments for the threads
-    write_args_t file_args = { .n_writes = total_ops, .path = file_path, .text = APPEND_CONTENTS_FILE};
-    write_args_t hardlink_args = { .n_writes = total_ops, .path = hardlink_path, .text = APPEND_CONTENTS_HARDLINK};
-    write_args_t symlink_args = { .n_writes = total_ops, .path = symlink_path, .text = APPEND_CONTENTS_SYMLINK};
+    write_args_t thread_args_1 = { .num = 1, .n_writes = total_ops, .path = file_path, .text = "789"};
+    write_args_t thread_args_2 = { .num = 2, .n_writes = total_ops, .path = file_path, .text = "123"};
+    write_args_t thread_args_3 = { .num = 3, .n_writes = total_ops, .path = file_path, .text = "456"};
 
     // Add the thread that writes onto the file
-    if (pthread_create(&tid[0], NULL, write_to_path_fn, (void *) &file_args) != 0) {
+    if (pthread_create(&tid[0], NULL, write_to_path_fn, (void *) &thread_args_1) != 0) {
         fprintf(stderr, "failed to create file writing thread: %s\n", strerror(errno));
         exit(EXIT_FAILURE);
     }
 
     // Add the thread that writes onto the hard link
-    if (pthread_create(&tid[1], NULL, write_to_path_fn, (void *) &hardlink_args) != 0) {
+    if (pthread_create(&tid[1], NULL, write_to_path_fn, (void *) &thread_args_2) != 0) {
         fprintf(stderr, "failed to create hardlink writing thread: %s\n", strerror(errno));
         exit(EXIT_FAILURE);
     }
 
     // Add the thread that writes onto the soft link
-    if (pthread_create(&tid[2], NULL, write_to_path_fn, (void *) &symlink_args) != 0) {
+    if (pthread_create(&tid[2], NULL, write_to_path_fn, (void *) &thread_args_3) != 0) {
         fprintf(stderr, "failed to create hardlink writing thread: %s\n", strerror(errno));
         exit(EXIT_FAILURE);
     }
