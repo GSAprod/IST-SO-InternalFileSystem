@@ -235,7 +235,6 @@ int inode_create(inode_type i_type) {
     insert_delay(); // simulate storage access delay (to inode)
 
     /* Lock writing access to the inode */
-    //pthread_rwlock_wrlock(&(inode->rwlock_inode));
 
     inode->i_node_type = i_type;
     //Hard link counter initialized
@@ -262,7 +261,6 @@ int inode_create(inode_type i_type) {
         inode_table[inumber].i_size = BLOCK_SIZE;
         inode_table[inumber].i_data_block = b;
         /* Unlock the inode so other threads can use it */
-        //pthread_rwlock_unlock(&(inode->rwlock_inode));
 
         dir_entry_t *dir_entry = (dir_entry_t *)data_block_get(b);
         pthread_rwlock_wrlock(&(dir_entry->rwlock_dir_entry));
@@ -307,11 +305,9 @@ void inode_delete(int inumber) {
                   "inode_delete: inode already freed");
 
     /* Locked inode for writing */
-    //pthread_rwlock_wrlock(&(inode_table[inumber].rwlock_inode));
     if (inode_table[inumber].i_size > 0) {
         data_block_free(inode_table[inumber].i_data_block);
     }
-    //pthread_rwlock_unlock(&(inode_table[inumber].rwlock_inode));
     
     pthread_mutex_lock(&mutex_freeinode_ts);
     freeinode_ts[inumber] = FREE;
@@ -358,7 +354,7 @@ int clear_dir_entry(inode_t *inode, char const *sub_name) {
 
     // Locates the block containing the entries of the directory
     dir_entry_t *dir_entry = (dir_entry_t *)data_block_get(inode->i_data_block);
-    //pthread_rwlock_wrlock(&(dir_entry->rwlock_dir_entry));
+
     ALWAYS_ASSERT(dir_entry != NULL,
                   "clear_dir_entry: directory must have a data block");
 
@@ -367,11 +363,11 @@ int clear_dir_entry(inode_t *inode, char const *sub_name) {
             dir_entry[i].d_inumber = -1;
             pthread_rwlock_destroy(&(dir_entry[i].rwlock_dir_entry));
             memset(dir_entry[i].d_name, 0, MAX_FILE_NAME);
-            //pthread_rwlock_unlock(&(dir_entry->rwlock_dir_entry));
+            
             return 0;
         }
     }
-    //pthread_rwlock_unlock(&(dir_entry->rwlock_dir_entry));
+    
     return -1; // sub_name not found
 }
 
@@ -443,7 +439,6 @@ int find_in_dir(inode_t *inode, char const *sub_name) {
     if (inode->i_node_type != T_DIRECTORY) {
         return -1; // not a directory
     }
-    //pthread_rwlock_wrlock(&(inode->rwlock_inode));
 
     // Locates the block containing the entries of the directory
     dir_entry_t *dir_entry = (dir_entry_t *)data_block_get(inode->i_data_block);

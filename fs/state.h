@@ -31,7 +31,6 @@ typedef struct inode_t{
     int i_link_counter;
 
     pthread_rwlock_t rwlock_inode;
-    // in a more complete FS, more fields could exist here
 } inode_t;
 
 typedef enum { FREE = 0, TAKEN = 1 } allocation_state_t;

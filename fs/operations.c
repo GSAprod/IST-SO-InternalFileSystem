@@ -357,12 +357,15 @@ int tfs_unlink(char const *target) {
         pthread_rwlock_rdlock(&(inode->rwlock_inode));
 
         if (inode->i_node_type == T_SYMLINK) {
+            // If the inode is a symbolic link, delete the inode
             clear_dir_entry(root_dir_inode, target+1);
             if (inode->i_size > 0)
                 data_block_free(inode->i_data_block);
             inode_delete(inum);
         }
 
+        // If it is a file inode, check how many links are left
+        // If there are no left links to this inode, delete it
         if (inode->i_node_type == T_FILE) {
             clear_dir_entry(root_dir_inode, target+1);
             inode->i_link_counter--;
