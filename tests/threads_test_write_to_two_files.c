@@ -11,6 +11,7 @@
 #define APPEND_CONTENTS_FILE ("123")
 #define APPEND_CONTENTS_SYMLINK ("ABC")
 #define APPEND_CONTENTS_HARDLINK ("abc")
+#define THREAD_NUMBER 2
 
 typedef struct {
     ssize_t n_writes;
@@ -51,7 +52,7 @@ int main() {
     char *file_path = "/f1";
     char *file_path_2 = "/f2";
     ssize_t total_ops = 10;
-    pthread_t tid[2];
+    pthread_t tid[THREAD_NUMBER];
 
     // Initialize tfs with default parameters
     tfs_params params = tfs_default_params();

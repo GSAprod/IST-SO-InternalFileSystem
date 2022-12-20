@@ -9,6 +9,7 @@
 #include <assert.h>
 
 #define APPEND_CONTENTS_FILE ("123")
+#define THREAD_NUMBER 2
 
 typedef struct {
     ssize_t n_writes;
@@ -72,7 +73,7 @@ void assert_contents_ok(char const *path) {
 int main() {
     char *file_path = "/f1";
 
-    pthread_t tid[2];
+    pthread_t tid[THREAD_NUMBER];
 
     ssize_t total_ops = 10;
 
