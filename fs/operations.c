@@ -151,15 +151,46 @@ int tfs_open(char const *name, tfs_file_mode_t mode) {
     // opened but it remains created
 }
 
+int verify_symlink_recursion(char const *target, char const *link_name) {
+
+
+    inode_t *root_dir_inode = inode_get(ROOT_DIR_INUM);
+    ALWAYS_ASSERT(root_dir_inode != NULL,
+                  "tfs_open: root dir inode must exist");
+
+    int target_inum = tfs_lookup(target, root_dir_inode);
+    inode_t *target_inode = inode_get(target_inum);
+
+    inode_t *next_inode = target_inode;
+
+    while (next_inode->i_node_type == T_SYMLINK) {
+        char buffer[sizeof(link_name)];
+        void *block = data_block_get(next_inode->i_data_block);
+        memcpy(buffer, block, sizeof(buffer));
+        if (strcmp(buffer, link_name) == 0)
+            return -1;
+
+        int next_inum = tfs_lookup(buffer, root_dir_inode);
+        next_inode = inode_get(next_inum);
+    }
+    return 0;
+}
+
 int tfs_sym_link(char const *target, char const *link_name) {
     // Checks if the target path name is valid
     if (!valid_pathname(target)) {
         return -1;
     }
 
+    if (strcmp(target, link_name) == 0)
+        return -1;
+
     inode_t *root_dir_inode = inode_get(ROOT_DIR_INUM);
     ALWAYS_ASSERT(root_dir_inode != NULL,
                   "tfs_open: root dir inode must exist");
+
+    if (verify_symlink_recursion(target, link_name) == -1)
+        return -1;
 
     int link_inum = inode_create(T_SYMLINK);
     if(link_inum == -1) {
@@ -200,6 +231,9 @@ int tfs_link(char const *target, char const *link_name) {
     if (!valid_pathname(target)) {
         return -1;
     }
+
+    if (strcmp(target, link_name) == 0)
+        return -1;
 
     inode_t *root_dir_inode = inode_get(ROOT_DIR_INUM);
     if (root_dir_inode == NULL)
