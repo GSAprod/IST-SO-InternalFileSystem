@@ -15,20 +15,22 @@
 typedef struct {
     char d_name[MAX_FILE_NAME];
     int d_inumber;
+    pthread_rwlock_t rwlock_dir_entry;
 } dir_entry_t;
 
-typedef enum { T_FILE, T_DIRECTORY } inode_type;
+typedef enum { T_FILE, T_DIRECTORY, T_SYMLINK } inode_type;
 
 /**
  * Inode
  */
-typedef struct {
+typedef struct inode_t{
     inode_type i_node_type;
 
     size_t i_size;
     int i_data_block;
+    int i_link_counter;
 
-    // in a more complete FS, more fields could exist here
+    pthread_rwlock_t rwlock_inode;
 } inode_t;
 
 typedef enum { FREE = 0, TAKEN = 1 } allocation_state_t;
@@ -39,6 +41,7 @@ typedef enum { FREE = 0, TAKEN = 1 } allocation_state_t;
 typedef struct {
     int of_inumber;
     size_t of_offset;
+    pthread_rwlock_t rwlock_open_file_entry;
 } open_file_entry_t;
 
 int state_init(tfs_params);
@@ -52,7 +55,7 @@ inode_t *inode_get(int inumber);
 
 int clear_dir_entry(inode_t *inode, char const *sub_name);
 int add_dir_entry(inode_t *inode, char const *sub_name, int sub_inumber);
-int find_in_dir(inode_t const *inode, char const *sub_name);
+int find_in_dir(inode_t *inode, char const *sub_name);
 
 int data_block_alloc(void);
 void data_block_free(int block_number);
