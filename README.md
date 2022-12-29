@@ -1,4 +1,4 @@
-# IST_SO-TenicoFileSystem
+# IST_SO-TecnicoFileSystem
 Este repositório contém o código usado para desenvolver o projeto da cadeira de Sistemas Operativos.
 
 Esta implementação tem como base o código que se encontra disponível nos seguintes links:
