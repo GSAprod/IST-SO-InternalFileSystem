@@ -1,6 +1,9 @@
 #include "logging.h"
+#include <errno.h>
 #include <stdio.h>
 #include <string.h>
+#include <fcntl.h>
+#include <unistd.h>
 
 static void print_usage() {
     fprintf(stderr, "usage: \n"
@@ -34,6 +37,25 @@ int main(int argc, char **argv) {
     if (!strcmp(argv[0], "manager")) {
         print_usage();
         return -1;
+    }
+
+    int pipe = open(argv[1], O_WRONLY);
+
+    if (strcmp(argv[2], "create") == 0) {
+        ssize_t wr = write(pipe, "cria caixa\n", strlen("cria caixa\n"));
+        if (wr == -1) {
+            fprintf(stderr, "[ERROR]: Failed to write to pipe: %s\n", strerror(errno));
+            return -1;    
+        }
+        
+    }
+
+    if (strcmp(argv[2], "list") == 0) {
+        ssize_t wr = write(pipe, "lista caixas\n", strlen("lista caixas\n"));
+        if (wr == -1) {
+            fprintf(stderr, "[ERROR]: Failed to write to pipe: %s\n", strerror(errno));
+            return -1;    
+        }
     }
 
     WARN("unimplemented"); // TODO: implement
