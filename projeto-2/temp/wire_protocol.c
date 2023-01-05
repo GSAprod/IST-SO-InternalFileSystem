@@ -194,6 +194,8 @@ int prot_encode_inbox_listing_resp(__int8_t last, char box_name[32], __int64_t b
     memcpy(encoded + 4 + digitsA, box_name, 32);
     encoded[37 + digitsA] = '|';
     memcpy(encoded + 38 + digitsA, box_size, digitsB);
+
+    return 0;
 }
 
 /*
@@ -214,6 +216,8 @@ int prot_encode_pub_send_message(char message[1024], char* encoded, int encoded_
     sprintf(encoded, "%d", CODE_PUB_SEND_MESSAGE);
     encoded[1] = '|';
     memcpy(encoded + 2, message, 1024);
+
+    return 0;
 }
 
 /*
@@ -234,6 +238,8 @@ int prot_encode_sub_receive_message(char message[1024], char* encoded, int encod
     sprintf(encoded, "%d", CODE_SUB_RECEIVE_MESSAGE);
     encoded[2] = '|';
     memcpy(encoded + 3, message, 1024);
+
+    return 0;
 }
 
 
