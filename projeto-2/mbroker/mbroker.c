@@ -19,10 +19,8 @@ void create_box(char *box_name) {
     int create_box = tfs_open(box_name, O_CREAT);
     if (create_box == -1) {
         fprintf(stderr, "[ERROR]: Failed to create box: %s\n", strerror(errno));
-        return -1;
+        exit(EXIT_FAILURE);
     }
-
-    return 0;
 }
 
 void lista_caixas() {
