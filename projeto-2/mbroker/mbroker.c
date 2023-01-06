@@ -11,6 +11,8 @@
 #include <string.h>
 #include <stdbool.h>
 
+#define MAX_INBOXES 1024/sizeof(dir_entry_t)
+
 void print_usage() {
     fprintf(stderr, "usage: mbroker <pipename>\n");
 }
@@ -31,7 +33,7 @@ int create_box(char *box_name) {
 }
 
 
-int list_boxes(int created_boxes) {
+int list_boxes() {
 
     inode_t *root_dir_inode = inode_get(ROOT_DIR_INUM);
     if (root_dir_inode == NULL) {
@@ -43,7 +45,7 @@ int list_boxes(int created_boxes) {
     
     // Iterates over the directory entries looking for boxes
     char box_name[50];
-    for (int i = 0; i < created_boxes; i++)
+    for (int i = 0; i < MAX_INBOXES; i++)
         if ((dir_entry[i].d_inumber != -1)) {
             strcpy(box_name, dir_entry[i].d_name);
             printf("%s\n", box_name);
@@ -66,9 +68,13 @@ int remove_box(char *box_name) {
 
 int write_in_box(char *box_name, char *message) {
 
+    //if message is empty, don't write
+    if (strlen(message) == 0)
+        return 0;
+
     int box = tfs_open(box_name, TFS_O_APPEND);
 
-    if (tfs_write(box, message, strlen(message)) == -1) {
+    if (tfs_write(box, message, strlen(message)+1) == -1) {
         fprintf(stderr, "[ERROR]: Failed to write message: %s\n", strerror(errno));
         tfs_close(box);
         return -1;
@@ -82,11 +88,12 @@ int write_in_box(char *box_name, char *message) {
 
 int read_from_box(char *box_name) {
 
-    int box = tfs_open(box_name, TFS_O_APPEND);
+    int box = tfs_open(box_name, 0);
 
     char message[256];
 
-    if (tfs_read(box, message, strlen(message)) == -1) {
+    //ciclo ate string lida ser vazia
+    if (tfs_read(box, message, sizeof(message)-1) == -1) {
         fprintf(stderr, "[ERROR]: Failed to reade message: %s\n", strerror(errno));
         return -1;
     }
@@ -95,28 +102,6 @@ int read_from_box(char *box_name) {
     tfs_close(box);
 
     return 0;
-
-}
-
-
-//Return 1 if box doens't exist and 0 if box already exist
-int box_exists(char *buffer, int created_boxes) {
-
-    inode_t *root_dir_inode = inode_get(ROOT_DIR_INUM);
-    if (root_dir_inode == NULL) {
-        fprintf(stderr, "[ERROR]: Failed to get root directory inode: %s\n", strerror(errno));
-        return -1;    
-    }
-
-    dir_entry_t *dir_entry = (dir_entry_t *)data_block_get(root_dir_inode->i_data_block);
-    
-    // Iterates over the directory entries looking for boxes
-    for (int i = 0; i < created_boxes; i++)
-        if ((dir_entry[i].d_inumber != -1))
-            if (strcmp(dir_entry[i].d_name, buffer) == 0)
-                return 0;
-    
-    return 1;
 
 }
 
@@ -145,8 +130,6 @@ int main(int argc, char **argv) {
 
     char buffer[256];
 
-    int created_boxes = 0;
-
     while (true) {
         memset(buffer, 0, sizeof(buffer));
         
@@ -157,28 +140,15 @@ int main(int argc, char **argv) {
         }
 
         printf("%s\n", buffer);
-        printf("created_boxes=%d\n", created_boxes);
 
-        if (strcmp(buffer, "/f1") == 0 || strcmp(buffer, "/f2") == 0 || strcmp(buffer, "/f3") == 0) {
-            if (box_exists(buffer, created_boxes) == 0) {
-                printf("box already exists\n");
-                continue;
-            }
-            //ver se é preciso isto
-            //MAX_DIR_ENTIRES nao funciona
-            int box = create_box(buffer);
-            //if the box has been succesfull created, increase the number of boxes created
-            if (box == -1) {
-                fprintf(stderr, "[ERROR]: Failed to create box: %s\n", strerror(errno));       
-            } else
-                created_boxes++;
-        }
+        if (strcmp(buffer, "/f1") == 0 || strcmp(buffer, "/f2") == 0 || strcmp(buffer, "/f3") == 0)
+            create_box(buffer);
 
         if (strcmp(buffer, "lista caixas") == 0)
-            list_boxes(created_boxes);
+            list_boxes();
 
         if (strcmp(buffer, "remove caixa") == 0)
-            remove_box("caixa");
+            remove_box("/f1");
 
         if (strcmp(buffer, "escreve na caixa") == 0)
             write_in_box("/f1", "mensagem na caixa");
