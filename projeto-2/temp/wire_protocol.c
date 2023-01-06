@@ -15,7 +15,7 @@
 #define CODE_SUB_RECEIVE_MESSAGE 10
 
 int prot_aux_encode_registrations(__int8_t code, char pipe_path[256], char box_name[32], 
-        char* encoded, ssize_t encoded_len) 
+        char* encoded, size_t encoded_len) 
 {
     if(encoded_len < 291)
         return -1;
@@ -31,7 +31,7 @@ int prot_aux_encode_registrations(__int8_t code, char pipe_path[256], char box_n
 }
 
 int prot_aux_encode_inbox_response(__int8_t code, __int32_t return_code, char error_message[1024], 
-        char* encoded, ssize_t encoded_len) 
+        char* encoded, size_t encoded_len) 
 {
     if(encoded_len < 1030)
         return -1;
@@ -172,12 +172,13 @@ int prot_encode_inbox_listing_req(char pipe_path[256], char* encoded, int encode
  *   - encoded_len: the size of the previous string
  */
 int prot_encode_inbox_listing_resp(__int8_t last, char box_name[32], __int64_t box_size, 
-        __int64_t n_publishers, char* encoded, int encoded_len) {
+        __int64_t n_publishers, __int64_t n_subscribers, char* encoded, int encoded_len) 
+{
     // TODO: Add missing arguments
     int digitsA = sizeof(last);
     int digitsB = sizeof(box_size);
 
-    if(encoded_len < 38 + digitsA + digitsB)
+    if(encoded_len < 63)
         return -1;
     memset(encoded, 0, encoded_len);
     
@@ -188,7 +189,11 @@ int prot_encode_inbox_listing_resp(__int8_t last, char box_name[32], __int64_t b
     encoded[3] = '|';
     memcpy(encoded + 4, box_name, 32);
     encoded[36] = '|';
-    memcpy(encoded + 37, box_size, digitsB);
+    memcpy(encoded + 37, box_size, sizeof(__int64_t));
+    encoded[45] = '|';
+    memcpy(encoded + 46, n_publishers, sizeof(__int64_t));
+    encoded[54] = '|';
+    memcpy(encoded + 55, n_subscribers, sizeof(__int64_t));
 
     return 0;
 }
@@ -208,7 +213,8 @@ int prot_encode_pub_send_message(char message[1024], char* encoded, int encoded_
         return -1;
     memset(encoded, 0, encoded_len);
 
-    sprintf(encoded, "%d", CODE_PUB_SEND_MESSAGE);
+    __int8_t code = CODE_PUB_SEND_MESSAGE;
+    memcpy(encoded, &code, sizeof(__int8_t));
     encoded[1] = '|';
     memcpy(encoded + 2, message, 1024);
 
@@ -230,9 +236,10 @@ int prot_encode_sub_receive_message(char message[1024], char* encoded, int encod
         return -1;
     memset(encoded, 0, encoded_len);
 
-    sprintf(encoded, "%d", CODE_SUB_RECEIVE_MESSAGE);
-    encoded[2] = '|';
-    memcpy(encoded + 3, message, 1024);
+    __int8_t code = CODE_SUB_RECEIVE_MESSAGE;
+    memcpy(encoded, &code, sizeof(__int8_t));
+    encoded[1] = '|';
+    memcpy(encoded + 2, message, 1024);
 
     return 0;
 }
