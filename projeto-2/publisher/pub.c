@@ -20,9 +20,9 @@ int main(int argc, char **argv) {
     }
 
     int pipe = open(argv[1], O_WRONLY);
-    
 
-    ssize_t wr = write(pipe, "ola\n", strlen("ola\n"));
+
+    ssize_t wr = write(pipe, "escreve na caixa", strlen("escreve na caixa"));
     if (wr == -1)
         return -1;
 

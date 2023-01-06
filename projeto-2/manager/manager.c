@@ -42,7 +42,7 @@ int main(int argc, char **argv) {
     int pipe = open(argv[1], O_WRONLY);
 
     if (strcmp(argv[2], "create") == 0) {
-        ssize_t wr = write(pipe, "cria caixa\n", strlen("cria caixa\n"));
+        ssize_t wr = write(pipe, argv[3], strlen(argv[3]));
         if (wr == -1) {
             fprintf(stderr, "[ERROR]: Failed to write to pipe: %s\n", strerror(errno));
             return -1;    
@@ -50,8 +50,16 @@ int main(int argc, char **argv) {
         
     }
 
+    if (strcmp(argv[2], "remove") == 0) {
+        ssize_t wr = write(pipe, "remove caixa", strlen("remove caixa"));
+        if (wr == -1) {
+            fprintf(stderr, "[ERROR]: Failed to write to pipe: %s\n", strerror(errno));
+            return -1;    
+        }
+    }
+
     if (strcmp(argv[2], "list") == 0) {
-        ssize_t wr = write(pipe, "lista caixas\n", strlen("lista caixas\n"));
+        ssize_t wr = write(pipe, "lista caixas", strlen("lista caixas"));
         if (wr == -1) {
             fprintf(stderr, "[ERROR]: Failed to write to pipe: %s\n", strerror(errno));
             return -1;    
