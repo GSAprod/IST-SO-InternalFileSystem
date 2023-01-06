@@ -14,14 +14,14 @@
 #define CODE_PUB_SEND_MESSAGE    9 
 #define CODE_SUB_RECEIVE_MESSAGE 10
 
-int prot_aux_encode_registrations(int code, char pipe_path[256], char box_name[32], 
-        char* encoded, int encoded_len) 
+int prot_aux_encode_registrations(__int8_t code, char pipe_path[256], char box_name[32], 
+        char* encoded, ssize_t encoded_len) 
 {
     if(encoded_len < 291)
         return -1;
     memset(encoded, 0, encoded_len);
 
-    sprintf(encoded, "%d", code);
+    memcpy(encoded, &code, sizeof(__int8_t));
     encoded[1] = '|';
     memcpy(encoded + 2, pipe_path, 256);
     encoded[258] = '|';
@@ -30,28 +30,20 @@ int prot_aux_encode_registrations(int code, char pipe_path[256], char box_name[3
     return 0;
 }
 
-int prot_aux_encode_inbox_response(int code, __int32_t return_code, char error_message[1024], 
-        char* encoded, int encoded_len) 
+int prot_aux_encode_inbox_response(__int8_t code, __int32_t return_code, char error_message[1024], 
+        char* encoded, ssize_t encoded_len) 
 {
-    // Calculate the number of digits used to store the return code number.
-    int digits = sizeof(return_code);
-    do {
-        digits++;
-        return_code /= 10;
-    } while (return_code != 0);
-
-    if(encoded < 1028+digits);
+    if(encoded_len < 1030)
         return -1;
     memset(encoded, 0, encoded_len);
 
-    sprintf(encoded, "%d", code);
+    memcpy(encoded, &code, sizeof(__int8_t));
     encoded[1] = '|';    
 
-    memcpy(encoded + 2, return_code, digits);
-    encoded[3+digits] = "|";
+    memcpy(encoded + 2, &return_code, sizeof(__int32_t));  // Maximum length of a 32-bit signed int is 11. 
+    encoded[6] = '|';
 
-    memcpy(encoded + 4 + digits, error_message, 1024);
-
+    memcpy(encoded + 7, error_message, 1024);
     return 0;
 }
 
@@ -161,7 +153,8 @@ int prot_encode_inbox_listing_req(char pipe_path[256], char* encoded, int encode
         return -1;
     memset(encoded, 0, encoded_len);
 
-    sprintf(encoded, "%d", CODE_INBOX_LIST_REQ);
+    __int8_t code = (__int8_t) CODE_INBOX_LIST_REQ;
+    memcpy(encoded, &code, sizeof(__int8_t));
     encoded[1] = '|';
     memcpy(encoded + 2, pipe_path, 256);
 
@@ -178,7 +171,8 @@ int prot_encode_inbox_listing_req(char pipe_path[256], char* encoded, int encode
  *   - encoded: a pointer to the string where the encoding will be made
  *   - encoded_len: the size of the previous string
  */
-int prot_encode_inbox_listing_resp(__int8_t last, char box_name[32], __int64_t box_size, char* encoded, int encoded_len) {
+int prot_encode_inbox_listing_resp(__int8_t last, char box_name[32], __int64_t box_size, 
+        __int64_t n_publishers, char* encoded, int encoded_len) {
     // TODO: Add missing arguments
     int digitsA = sizeof(last);
     int digitsB = sizeof(box_size);
@@ -187,13 +181,14 @@ int prot_encode_inbox_listing_resp(__int8_t last, char box_name[32], __int64_t b
         return -1;
     memset(encoded, 0, encoded_len);
     
-    sprintf(encoded, "%d", CODE_INBOX_LIST_RESP);
+    __int8_t code = (__int8_t) CODE_INBOX_LIST_RESP;
+    memcpy(encoded, &code, sizeof(__int8_t));
     encoded[1] = '|';
-    memcpy(encoded + 2, last, digitsA);
-    encoded[3 + digitsA] = '|';
-    memcpy(encoded + 4 + digitsA, box_name, 32);
-    encoded[37 + digitsA] = '|';
-    memcpy(encoded + 38 + digitsA, box_size, digitsB);
+    memcpy(encoded + 2, &last, sizeof(__int8_t));
+    encoded[3] = '|';
+    memcpy(encoded + 4, box_name, 32);
+    encoded[36] = '|';
+    memcpy(encoded + 37, box_size, digitsB);
 
     return 0;
 }
