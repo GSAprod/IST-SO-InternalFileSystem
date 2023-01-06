@@ -1,7 +1,4 @@
 #include "wire_protocol.h"
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
 
 #define CODE_PUB_REGISTRATION    1
 #define CODE_SUB_REGISTRATION    2 
@@ -14,14 +11,27 @@
 #define CODE_PUB_SEND_MESSAGE    9 
 #define CODE_SUB_RECEIVE_MESSAGE 10
 
-int prot_aux_encode_registrations(__int8_t code, char pipe_path[256], char box_name[32], 
-        char* encoded, size_t encoded_len) 
+void print_encoded(char* encoded, size_t len) {
+    printf("encoded = \"");
+
+    for(int i = 0; i < len; i++) {
+        if (encoded[i] == '\0')
+            puts("\\0");
+        else
+            puts(&encoded[i]);
+    }
+
+    printf("\"");
+}
+
+int prot_aux_encode_registrations(__int8_t code, char pipe_path[256], char box_name[32], char* encoded, size_t encoded_len) 
 {
     if(encoded_len < 291)
         return -1;
     memset(encoded, 0, encoded_len);
 
     memcpy(encoded, &code, sizeof(__int8_t));
+
     encoded[1] = '|';
     memcpy(encoded + 2, pipe_path, 256);
     encoded[258] = '|';
@@ -30,8 +40,7 @@ int prot_aux_encode_registrations(__int8_t code, char pipe_path[256], char box_n
     return 0;
 }
 
-int prot_aux_encode_inbox_response(__int8_t code, __int32_t return_code, char error_message[1024], 
-        char* encoded, size_t encoded_len) 
+int prot_aux_encode_inbox_response(__int8_t code, __int32_t return_code, char error_message[1024], char* encoded, size_t encoded_len) 
 {
     if(encoded_len < 1030)
         return -1;
@@ -39,7 +48,7 @@ int prot_aux_encode_inbox_response(__int8_t code, __int32_t return_code, char er
 
     memcpy(encoded, &code, sizeof(__int8_t));
     encoded[1] = '|';    
-
+    print_encoded(encoded, encoded_len);
     memcpy(encoded + 2, &return_code, sizeof(__int32_t));  // Maximum length of a 32-bit signed int is 11. 
     encoded[6] = '|';
 
@@ -59,7 +68,7 @@ int prot_aux_encode_inbox_response(__int8_t code, __int32_t return_code, char er
  *   - encoded_len: the size of the previous string
  * 
  */
-int prot_encode_pub_registration(char pipe_path[256], char box_name[32], char* encoded, int encoded_len) {
+int prot_encode_pub_registration(char pipe_path[256], char box_name[32], char* encoded, size_t encoded_len) {
     return prot_aux_encode_registrations(CODE_PUB_REGISTRATION, pipe_path, box_name, encoded, encoded_len);
 }
 
@@ -74,7 +83,7 @@ int prot_encode_pub_registration(char pipe_path[256], char box_name[32], char* e
  *   - encoded: a pointer to the string where the encoding will be made
  *   - encoded_len: the size of the previous string
  */
-int prot_encode_sub_registration(char pipe_path[256], char box_name[32], char* encoded, int encoded_len) {
+int prot_encode_sub_registration(char pipe_path[256], char box_name[32], char* encoded, size_t encoded_len) {
     return prot_aux_encode_registrations(CODE_SUB_REGISTRATION, pipe_path, box_name, encoded, encoded_len);
 }
 
@@ -89,7 +98,7 @@ int prot_encode_sub_registration(char pipe_path[256], char box_name[32], char* e
  *   - encoded: a pointer to the string where the encoding will be made
  *   - encoded_len: the size of the previous string
  */
-int prot_encode_inbox_creation_req(char pipe_path[256], char box_name[32], char* encoded, int encoded_len) {
+int prot_encode_inbox_creation_req(char pipe_path[256], char box_name[32], char* encoded, size_t encoded_len) {
     return prot_aux_encode_registrations(CODE_INBOX_CREATE_REQ, pipe_path, box_name, encoded, encoded_len);
 }
 
@@ -104,7 +113,7 @@ int prot_encode_inbox_creation_req(char pipe_path[256], char box_name[32], char*
  *   - encoded: a pointer to the string where the encoding will be made
  *   - encoded_len: the size of the previous string
  */
-int prot_encode_inbox_creation_resp(__int32_t return_code, char error_message[1024], char* encoded, int encoded_len) {
+int prot_encode_inbox_creation_resp(__int32_t return_code, char error_message[1024], char* encoded, size_t encoded_len) {
     return prot_aux_encode_inbox_response(CODE_INBOX_CREATE_RESP, return_code, error_message, encoded, encoded_len);
 }
 
@@ -119,7 +128,7 @@ int prot_encode_inbox_creation_resp(__int32_t return_code, char error_message[10
  *   - encoded: a pointer to the string where the encoding will be made
  *   - encoded_len: the size of the previous string
  */
-int prot_encode_inbox_removal_req(char pipe_path[256], char box_name[32], char* encoded, int encoded_len) {
+int prot_encode_inbox_removal_req(char pipe_path[256], char box_name[32], char* encoded, size_t encoded_len) {
     return prot_aux_encode_registrations(CODE_INBOX_REMOVE_REQ, pipe_path, box_name, encoded, encoded_len);
 }
 
@@ -134,7 +143,7 @@ int prot_encode_inbox_removal_req(char pipe_path[256], char box_name[32], char* 
  *   - encoded: a pointer to the string where the encoding will be made
  *   - encoded_len: the size of the previous string
  */
-int prot_encode_inbox_removal_resp(__int32_t return_code, char error_message[1024], char* encoded, int encoded_len) {
+int prot_encode_inbox_removal_resp(__int32_t return_code, char error_message[1024], char* encoded, size_t encoded_len) {
     return prot_aux_encode_inbox_response(CODE_INBOX_REMOVE_RESP, return_code, error_message, encoded, encoded_len);
 }
 
@@ -148,7 +157,7 @@ int prot_encode_inbox_removal_resp(__int32_t return_code, char error_message[102
  *   - encoded: a pointer to the string where the encoding will be made
  *   - encoded_len: the size of the previous string
  */
-int prot_encode_inbox_listing_req(char pipe_path[256], char* encoded, int encoded_len) {
+int prot_encode_inbox_listing_req(char pipe_path[256], char* encoded, size_t encoded_len) {
     if(encoded_len < 258)
         return -1;
     memset(encoded, 0, encoded_len);
@@ -171,13 +180,8 @@ int prot_encode_inbox_listing_req(char pipe_path[256], char* encoded, int encode
  *   - encoded: a pointer to the string where the encoding will be made
  *   - encoded_len: the size of the previous string
  */
-int prot_encode_inbox_listing_resp(__int8_t last, char box_name[32], __int64_t box_size, 
-        __int64_t n_publishers, __int64_t n_subscribers, char* encoded, int encoded_len) 
+int prot_encode_inbox_listing_resp(__int8_t last, char box_name[32], __int64_t box_size, __int64_t n_publishers, __int64_t n_subscribers, char* encoded, size_t encoded_len) 
 {
-    // TODO: Add missing arguments
-    int digitsA = sizeof(last);
-    int digitsB = sizeof(box_size);
-
     if(encoded_len < 63)
         return -1;
     memset(encoded, 0, encoded_len);
@@ -189,11 +193,11 @@ int prot_encode_inbox_listing_resp(__int8_t last, char box_name[32], __int64_t b
     encoded[3] = '|';
     memcpy(encoded + 4, box_name, 32);
     encoded[36] = '|';
-    memcpy(encoded + 37, box_size, sizeof(__int64_t));
+    memcpy(encoded + 37, &box_size, sizeof(__int64_t));
     encoded[45] = '|';
-    memcpy(encoded + 46, n_publishers, sizeof(__int64_t));
+    memcpy(encoded + 46, &n_publishers, sizeof(__int64_t));
     encoded[54] = '|';
-    memcpy(encoded + 55, n_subscribers, sizeof(__int64_t));
+    memcpy(encoded + 55, &n_subscribers, sizeof(__int64_t));
 
     return 0;
 }
@@ -208,7 +212,7 @@ int prot_encode_inbox_listing_resp(__int8_t last, char box_name[32], __int64_t b
  *   - encoded: a pointer to the string where the encoding will be made
  *   - encoded_len: the size of the previous string
  */
-int prot_encode_pub_send_message(char message[1024], char* encoded, int encoded_len) {
+int prot_encode_pub_send_message(char message[1024], char* encoded, size_t encoded_len) {
     if (encoded_len < 1026)
         return -1;
     memset(encoded, 0, encoded_len);
@@ -231,7 +235,7 @@ int prot_encode_pub_send_message(char message[1024], char* encoded, int encoded_
  *   - encoded: a pointer to the string where the encoding will be made
  *   - encoded_len: the size of the previous string
  */
-int prot_encode_sub_receive_message(char message[1024], char* encoded, int encoded_len) {
+int prot_encode_sub_receive_message(char message[1024], char* encoded, size_t encoded_len) {
     if (encoded_len < 1026)
         return -1;
     memset(encoded, 0, encoded_len);
@@ -245,7 +249,7 @@ int prot_encode_sub_receive_message(char message[1024], char* encoded, int encod
 }
 
 
-/*
+
 int main() {
     char pipe_path[256];
     memset(pipe_path, 0, 256);
@@ -264,4 +268,3 @@ int main() {
     }
     return 0;
 }
-*/
