@@ -94,6 +94,16 @@ void read_from_box(char *box_name) {
         return;
     }
 
+    for (int i = 0; i < bytes_read - 1; i++) {
+        if (message[i] == '\0') {
+            if(message[i] + 1 == '\0')
+                break;
+            else 
+                message[i] = '\n';
+        }
+    }
+    message[bytes_read - 1] = '\0';
+
     while (bytes_read > 0) {
 
         printf("Message->%s\n", message);
