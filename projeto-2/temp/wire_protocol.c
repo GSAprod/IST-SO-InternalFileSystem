@@ -16,9 +16,11 @@ void print_encoded(char* encoded, size_t len) {
 
     for(int i = 0; i < len; i++) {
         if (encoded[i] == '\0')
-            puts("\\0");
-        else
-            puts(&encoded[i]);
+            fputs("\\0", stdout);
+        else {
+            char c = encoded[i];
+            fputs(&c, stdout);
+        }
     }
 
     printf("\"");
@@ -31,11 +33,11 @@ int prot_aux_encode_registrations(__int8_t code, char pipe_path[256], char box_n
     memset(encoded, 0, encoded_len);
 
     memcpy(encoded, &code, sizeof(__int8_t));
-
     encoded[1] = '|';
-    memcpy(encoded + 2, pipe_path, 256);
+    memcpy(encoded + 2, pipe_path, 256*sizeof(char));
     encoded[258] = '|';
-    memcpy(encoded + 259, box_name, 32);
+    memcpy(encoded + 259, box_name, 32*sizeof(char));
+    print_encoded(encoded, encoded_len);
 
     return 0;
 }
@@ -48,11 +50,23 @@ int prot_aux_encode_inbox_response(__int8_t code, __int32_t return_code, char er
 
     memcpy(encoded, &code, sizeof(__int8_t));
     encoded[1] = '|';    
-    print_encoded(encoded, encoded_len);
     memcpy(encoded + 2, &return_code, sizeof(__int32_t));  // Maximum length of a 32-bit signed int is 11. 
     encoded[6] = '|';
 
-    memcpy(encoded + 7, error_message, 1024);
+    memcpy(encoded + 7, error_message, 1024*sizeof(char));
+    return 0;
+}
+
+int prot_aux_encode_message(__int8_t code, char message[1024], char* encoded, size_t encoded_len) {
+    if (encoded_len < 1026)
+        return -1;
+    memset(encoded, 0, encoded_len);
+
+    memcpy(encoded, &code, sizeof(__int8_t));
+    encoded[1] = '|';
+    memcpy(encoded + 2, message, 1024*sizeof(char));
+    print_encoded(encoded, encoded_len);
+
     return 0;
 }
 
@@ -165,7 +179,7 @@ int prot_encode_inbox_listing_req(char pipe_path[256], char* encoded, size_t enc
     __int8_t code = (__int8_t) CODE_INBOX_LIST_REQ;
     memcpy(encoded, &code, sizeof(__int8_t));
     encoded[1] = '|';
-    memcpy(encoded + 2, pipe_path, 256);
+    memcpy(encoded + 2, pipe_path, 256*sizeof(char));
 
     return 0;
 }
@@ -191,7 +205,7 @@ int prot_encode_inbox_listing_resp(__int8_t last, char box_name[32], __int64_t b
     encoded[1] = '|';
     memcpy(encoded + 2, &last, sizeof(__int8_t));
     encoded[3] = '|';
-    memcpy(encoded + 4, box_name, 32);
+    memcpy(encoded + 4, box_name, 32*sizeof(char));
     encoded[36] = '|';
     memcpy(encoded + 37, &box_size, sizeof(__int64_t));
     encoded[45] = '|';
@@ -213,16 +227,7 @@ int prot_encode_inbox_listing_resp(__int8_t last, char box_name[32], __int64_t b
  *   - encoded_len: the size of the previous string
  */
 int prot_encode_pub_send_message(char message[1024], char* encoded, size_t encoded_len) {
-    if (encoded_len < 1026)
-        return -1;
-    memset(encoded, 0, encoded_len);
-
-    __int8_t code = CODE_PUB_SEND_MESSAGE;
-    memcpy(encoded, &code, sizeof(__int8_t));
-    encoded[1] = '|';
-    memcpy(encoded + 2, message, 1024);
-
-    return 0;
+    return prot_aux_encode_message(CODE_PUB_SEND_MESSAGE, message, encoded, encoded_len);
 }
 
 /*
@@ -236,35 +241,22 @@ int prot_encode_pub_send_message(char message[1024], char* encoded, size_t encod
  *   - encoded_len: the size of the previous string
  */
 int prot_encode_sub_receive_message(char message[1024], char* encoded, size_t encoded_len) {
-    if (encoded_len < 1026)
-        return -1;
-    memset(encoded, 0, encoded_len);
-
-    __int8_t code = CODE_SUB_RECEIVE_MESSAGE;
-    memcpy(encoded, &code, sizeof(__int8_t));
-    encoded[1] = '|';
-    memcpy(encoded + 2, message, 1024);
-
-    return 0;
+    return prot_aux_encode_message(CODE_SUB_RECEIVE_MESSAGE, message, encoded, encoded_len);
 }
 
 
 
 int main() {
-    char pipe_path[256];
-    memset(pipe_path, 0, 256);
-    strcpy(pipe_path, "123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345");
+    char pipe_path[1024];
+    memset(pipe_path, 0, 1024);
+    strcpy(pipe_path, "123456789012345678901234567890112345678901234567890123456789011234567890123456789012345678901123456789012345678901234567890123412345678901234567890123456789011234567890123456789012345678901123456789012345678901234567890112345678901234567890123456789012341234567890123456789012345678901123456789012345678901234567890112345678901234567890123456789011234567890123456789012345678901234123456789012345678901234567890112345678901234567890123456789011234567890123456789012345678901123456789012345678901234567890123412345678901234567890123456789011234567890123456789012345678901123456789012345678901234567890112345678901234567890123456789012341234567890123456789012345678901123456789012345678901234567890112345678901234567890123456789011234567890123456789012345678901234123456789012345678901234567890112345678901234567890123456789011234567890123456789012345678901123456789012345678901234567890123412345678901234567890123456789011234567890123456789012345678901123456789012345678901234567890112345678901234567890123456789012345678901");
 
-    char box_name[32];
-    memset(box_name, 0, 32);
-    strcpy(box_name, "boxes");
-
-    char aaa[256+32+3];
-    memset(aaa, 0, 256+32+3);
-    prot_encode_pub_registration(pipe_path, box_name, aaa, sizeof(aaa));
+    char aaa[1030];
+    memset(aaa, 0, 1030);
+    prot_encode_pub_send_message(pipe_path, aaa, sizeof(aaa));
 
     if (aaa[0] == 1) {
-        box_name[0] = '1';
+        aaa[0] = '1';
     }
     return 0;
 }
