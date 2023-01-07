@@ -18,91 +18,96 @@ void print_usage() {
 }
 
 
-int create_box(char *box_name) {
+void create_box(char *box_name) {
     int create_box = tfs_open(box_name, TFS_O_CREAT);
     
-    if (create_box == -1) {
+    if (create_box == -1)
         fprintf(stderr, "[ERROR]: Failed to create box: %s\n", strerror(errno));
-        tfs_close(create_box);
-        return -1;
-    }
 
     tfs_close(create_box);
-
-    return 0;
 }
 
 
-int list_boxes() {
+void list_boxes() {
 
     inode_t *root_dir_inode = inode_get(ROOT_DIR_INUM);
     if (root_dir_inode == NULL) {
         fprintf(stderr, "[ERROR]: Failed to get root directory inode: %s\n", strerror(errno));
-        return -1;    
+        return;
     }
 
     dir_entry_t *dir_entry = (dir_entry_t *)data_block_get(root_dir_inode->i_data_block);
     
     // Iterates over the directory entries looking for boxes
     char box_name[50];
+
     for (int i = 0; i < MAX_INBOXES; i++)
         if ((dir_entry[i].d_inumber != -1)) {
+
             strcpy(box_name, dir_entry[i].d_name);
             printf("%s\n", box_name);
         }
-
-    return 0;
 }
 
 
-int remove_box(char *box_name) {
+void remove_box(char *box_name) {
 
-    if (tfs_unlink(box_name) == -1) {
+    if (tfs_unlink(box_name) == -1)
         fprintf(stderr, "[ERROR]: Failed to remove box: %s\n", strerror(errno));
-        return -1;
-    }
-
-    return 0;
 }
 
 
-int write_in_box(char *box_name, char *message) {
+void write_in_box(char *box_name, char *message) {
 
     //if message is empty, don't write
     if (strlen(message) == 0)
-        return 0;
+        return;
 
     int box = tfs_open(box_name, TFS_O_APPEND);
 
     if (tfs_write(box, message, strlen(message)+1) == -1) {
         fprintf(stderr, "[ERROR]: Failed to write message: %s\n", strerror(errno));
-        tfs_close(box);
-        return -1;
     }
 
     tfs_close(box);
-
-    return 0;
 }
 
 
-int read_from_box(char *box_name) {
+void read_from_box(char *box_name) {
 
     int box = tfs_open(box_name, 0);
 
     char message[256];
 
-    //ciclo ate string lida ser vazia
-    if (tfs_read(box, message, sizeof(message)-1) == -1) {
-        fprintf(stderr, "[ERROR]: Failed to reade message: %s\n", strerror(errno));
-        return -1;
+    ssize_t bytes_read = tfs_read(box, message, sizeof(message));
+    
+    //Empty box
+    if (bytes_read == 0) {
+        printf("Sem mensagens");
+        tfs_close(box);
+        return;
     }
-    printf("message->%s\n", message);
+    //Failed to read from box
+    if (bytes_read == -1) {
+        fprintf(stderr, "[ERROR]: Failed to read message: %s\n", strerror(errno));
+        tfs_close(box);
+        return;
+    }
+
+    while (bytes_read > 0) {
+
+        printf("Message->%s\n", message);
+        
+        bytes_read = tfs_read(box, message, sizeof(message));
+
+        if (bytes_read == -1) {
+            fprintf(stderr, "[ERROR]: Failed to read message: %s\n", strerror(errno));
+            tfs_close(box);
+            return;        
+        }
+    }
 
     tfs_close(box);
-
-    return 0;
-
 }
 
 
@@ -129,6 +134,7 @@ int main(int argc, char **argv) {
         return -1;
 
     char buffer[256];
+    int x = 0;
 
     while (true) {
         memset(buffer, 0, sizeof(buffer));
@@ -150,8 +156,15 @@ int main(int argc, char **argv) {
         if (strcmp(buffer, "remove caixa") == 0)
             remove_box("/f1");
 
-        if (strcmp(buffer, "escreve na caixa") == 0)
-            write_in_box("/f1", "mensagem na caixa");
+        if (strcmp(buffer, "escreve na caixa") == 0) {
+            x++;
+            if(x==1)
+                write_in_box("/f1", "mensagem 1");
+            if(x==2)
+                write_in_box("/f1", "mensagem 2");
+            if (x==3)
+                write_in_box("/f1", "mensagem 3");    
+        }
 
         if (strcmp(buffer, "le da caixa") == 0)
             read_from_box("/f1");
