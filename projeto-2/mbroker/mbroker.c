@@ -14,7 +14,37 @@
 #define MAX_INBOXES 1024/sizeof(dir_entry_t)
 
 void print_usage() {
-    fprintf(stderr, "usage: mbroker <pipename>\n");
+    fprintf(stderr, "usage: mbroker <pipename> <max_sessions>\n");
+}
+
+
+void connect_publisher(char *pipe_name) {
+
+    printf("aqui\n");
+    
+    int pipe = open(pipe_name, O_RDONLY);
+
+    int pipe_wait = open(pipe_name, O_WRONLY);
+    if (pipe_wait == -1) {
+        fprintf(stderr, "[ERROR]: Failed to open pipe: %s\n", strerror(errno));
+        return;
+    }
+
+    char buffer[256];
+
+    while (true) {
+        memset(buffer, 0, sizeof(buffer));
+        
+        ssize_t rd = read(pipe, &buffer, 256);
+        if (rd == -1) {
+            fprintf(stderr, "[ERROR]: Failed to read from pipe: %s\n", strerror(errno));
+            return;
+        }
+
+        printf("mensagem no mbroker pelo pipe->%s\n", buffer);
+        break;
+    }
+
 }
 
 
@@ -122,8 +152,6 @@ void read_from_box(char *box_name) {
 
 
 int main(int argc, char **argv) {
-    (void)argc;
-    (void)argv;
 
     if(argc != 2) {
         print_usage();
@@ -134,6 +162,12 @@ int main(int argc, char **argv) {
         fprintf(stderr, "[ERROR]: Failed to init tfs: %s\n", strerror(errno));
         return -1;
     }
+
+    if (unlink(argv[1]) != 0 && errno != ENOENT) {
+    fprintf(stderr, "[ERR]: unlink(%s) failed: %s\n", argv[1],
+            strerror(errno));
+    exit(EXIT_FAILURE);
+}
     
     mkfifo(argv[1], 0666);
     
@@ -144,7 +178,6 @@ int main(int argc, char **argv) {
         return -1;
 
     char buffer[256];
-    int x = 0;
 
     while (true) {
         memset(buffer, 0, sizeof(buffer));
@@ -166,14 +199,9 @@ int main(int argc, char **argv) {
         if (strcmp(buffer, "remove caixa") == 0)
             remove_box("/f1");
 
-        if (strcmp(buffer, "escreve na caixa") == 0) {
-            x++;
-            if(x==1)
-                write_in_box("/f1", "mensagem 1");
-            if(x==2)
-                write_in_box("/f1", "mensagem 2");
-            if (x==3)
-                write_in_box("/f1", "mensagem 3");    
+        if (strcmp(buffer, "session_pipe") == 0) {
+            printf("ok\n");
+            connect_publisher(buffer);
         }
 
         if (strcmp(buffer, "le da caixa") == 0)

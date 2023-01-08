@@ -3,28 +3,51 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+#include <errno.h>
+#include <stdbool.h>
+#include <sys/stat.h>
+
 
 
 static void print_usage() {
-    fprintf(stderr, "usage: pub <register_pipe_name> <box_name>\n");
+    fprintf(stderr, "usage: pub <register_pipe_name> <pipe_name> <box_name>\n");
 }
 
 int main(int argc, char **argv) {
-    (void)argc;
-    (void)argv;
-    WARN("unimplemented"); // TODO: implement
-
-    if(argc != 3) {
+    
+    if(argc != 4) {
         print_usage();
         return -1;
     }
 
+    if (unlink(argv[2]) != 0 && errno != ENOENT) {
+    fprintf(stderr, "[ERR]: unlink(%s) failed: %s\n", argv[2],
+            strerror(errno));
+    exit(EXIT_FAILURE);
+}
+    
+    mkfifo(argv[2], 0777);
+    
+    //Register pipe
     int pipe = open(argv[1], O_WRONLY);
+    //Session pipe
+    int pipe_name = open(argv[2], O_WRONLY);
+    int pip = open(argv[2], O_RDONLY);
+    pip++;
+    
+    if (pipe == -1 || pipe_name == -1) {
+        fprintf(stderr, "[ERROR]: Failed to open pipe: %s\n", strerror(errno));
+    }
+    
 
-
-    ssize_t wr = write(pipe, "escreve na caixa", strlen("escreve na caixa"));
+    ssize_t wr = write(pipe, argv[2], strlen(argv[2]));
     if (wr == -1)
         return -1;
 
-    return -1;
+    ssize_t wr_pipe_name = write(pipe_name, argv[2], strlen(argv[2]));
+    if (wr_pipe_name == -1)
+        return -1;
+    close(pipe_name);
+
+    return 0;
 }
