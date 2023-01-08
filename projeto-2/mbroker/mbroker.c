@@ -21,8 +21,10 @@ void print_usage() {
 void connect_publisher(char *pipe_name) {
 
     printf("aqui\n");
+
+    mkfifo(pipe_name, 0666);
     
-    int pipe = open(pipe_name, O_RDONLY);
+    //int pipe = open(pipe_name, O_RDONLY);
 
     int pipe_wait = open(pipe_name, O_WRONLY);
     if (pipe_wait == -1) {
@@ -30,20 +32,9 @@ void connect_publisher(char *pipe_name) {
         return;
     }
 
-    char buffer[256];
-
-    while (true) {
-        memset(buffer, 0, sizeof(buffer));
-        
-        ssize_t rd = read(pipe, &buffer, 256);
-        if (rd == -1) {
-            fprintf(stderr, "[ERROR]: Failed to read from pipe: %s\n", strerror(errno));
-            return;
-        }
-
-        printf("mensagem no mbroker pelo pipe->%s\n", buffer);
-        break;
-    }
+    ssize_t wr = write(pipe_wait, "ola", strlen("ola"));
+    if (wr == -1)
+        return;
 
 }
 
