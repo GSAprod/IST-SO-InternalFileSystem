@@ -10,11 +10,18 @@
 #include <ctype.h>
 #include <string.h>
 #include <stdbool.h>
+#include <signal.h>
+
 
 #define MAX_INBOXES 1024/sizeof(dir_entry_t)
 
 void print_usage() {
     fprintf(stderr, "usage: mbroker <pipename> <max_sessions>\n");
+}
+
+void sigint_handler(int signum) {
+    (void)signum;
+    printf("CTRL+D detected!\n");
 }
 
 
@@ -39,8 +46,6 @@ void connect_publisher(char *pipe_name) {
 
     //Create session pipe
     mkfifo(pipe_name, 0666);
-    
-    //int pipe = open(pipe_name, O_RDONLY);
 
     int pipe = open(pipe_name, O_WRONLY);
     if (pipe == -1) {
@@ -110,8 +115,12 @@ void remove_box(char *box_name) {
 
 void read_from_box(char *box_name) {
 
+    signal(SIGINT, sigint_handler);
+
 
     int box = tfs_open(box_name, 0);
+    int message_counter = 1;
+    size_t indice = 0;
 
     char message[256];
 
@@ -132,24 +141,32 @@ void read_from_box(char *box_name) {
 
     for (int i = 0; i < bytes_read - 1; i++) {
         if (message[i] == '\0') {
-            if(message[i] + 1 == '\0')
+            if(message[i] + 1 == '\0') {
+                indice = (size_t) i;
                 break;
-            else 
+            }
+            else {
                 message[i] = '\n';
+                message_counter++;
+            }
         }
     }
     message[bytes_read - 1] = '\0';
 
-    while (bytes_read > 0) {
+    printf("Messages:\n%s\n", message);
 
-        printf("Message->%s\n", message);
-        
+    while(true) {
+        memset(message, 0, sizeof(message));
         bytes_read = tfs_read(box, message, sizeof(message));
-
-        if (bytes_read == -1) {
-            fprintf(stderr, "[ERROR]: Failed to read message: %s\n", strerror(errno));
-            tfs_close(box);
-            return;        
+        //Verificar que não se mostra a mesma mensagem
+        sleep(1);
+        printf("caracteres escritos-%ld\n", indice);
+        //Eliminar mensagens ja escritas
+        if (message[indice]+1 != '\0') {
+            memset(message, 0, indice);
+            printf("new message->%s\n", message);
+            message_counter++;
+            indice += strlen(message);
         }
     }
 

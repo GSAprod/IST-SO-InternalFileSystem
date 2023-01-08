@@ -18,6 +18,12 @@ int main(int argc, char **argv) {
 
     //Register pipe
     int pipe = open(argv[1], O_WRONLY);
+
+    if (pipe == -1) {
+        fprintf(stderr, "[ERROR]: Failed to open pipe: %s\n", strerror(errno));
+        return -1;
+    }
+
     
     ssize_t wr = write(pipe, "le da caixa", strlen("le da caixa"));
     if (wr == -1)
