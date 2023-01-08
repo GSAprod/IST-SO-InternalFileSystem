@@ -18,24 +18,54 @@ void print_usage() {
 }
 
 
+void write_in_box(char *box_name, char *message) {
+
+    //if message is empty, don't write
+    if (strlen(message) == 0)
+        return;
+
+    int box = tfs_open(box_name, TFS_O_APPEND);
+
+    if (tfs_write(box, message, strlen(message)+1) == -1) {
+        fprintf(stderr, "[ERROR]: Failed to write message: %s\n", strerror(errno));
+    }
+
+    tfs_close(box);
+    return;
+}
+
+
 void connect_publisher(char *pipe_name) {
 
-    printf("aqui\n");
-
+    //Create session pipe
     mkfifo(pipe_name, 0666);
     
     //int pipe = open(pipe_name, O_RDONLY);
 
-    int pipe_wait = open(pipe_name, O_WRONLY);
-    if (pipe_wait == -1) {
+    int pipe = open(pipe_name, O_WRONLY);
+    if (pipe == -1) {
         fprintf(stderr, "[ERROR]: Failed to open pipe: %s\n", strerror(errno));
         return;
     }
 
-    ssize_t wr = write(pipe_wait, "ola", strlen("ola"));
+    ssize_t wr = write(pipe, "request accepted", strlen("request accepted"));
     if (wr == -1)
         return;
+    
+    char message_to_write[256];
+    
+    //TO ASK: espera ativa?
+    pipe = open(pipe_name, O_RDONLY);
 
+    //Wait for write until pipe is closed
+    while (pipe != -1) {
+        
+        ssize_t bytes_read = read(pipe, &message_to_write, sizeof(message_to_write));
+        if (bytes_read > 0){
+            write_in_box("/f1", message_to_write);
+        }
+        pipe = open(pipe_name, O_RDONLY);
+    }
 }
 
 
@@ -78,23 +108,8 @@ void remove_box(char *box_name) {
 }
 
 
-void write_in_box(char *box_name, char *message) {
-
-    //if message is empty, don't write
-    if (strlen(message) == 0)
-        return;
-
-    int box = tfs_open(box_name, TFS_O_APPEND);
-
-    if (tfs_write(box, message, strlen(message)+1) == -1) {
-        fprintf(stderr, "[ERROR]: Failed to write message: %s\n", strerror(errno));
-    }
-
-    tfs_close(box);
-}
-
-
 void read_from_box(char *box_name) {
+
 
     int box = tfs_open(box_name, 0);
 
@@ -198,10 +213,6 @@ int main(int argc, char **argv) {
         if (strcmp(buffer, "le da caixa") == 0)
             read_from_box("/f1");
     }
-    
-    
-
-    WARN("unimplemented"); // TODO: implement
 
     return -1;
 }

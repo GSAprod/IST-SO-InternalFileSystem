@@ -28,13 +28,12 @@ int main(int argc, char **argv) {
     
     //Register pipe
     int pipe = open(argv[1], O_WRONLY);
-    
-    
-    //if (pipe == -1 || pipe_name == -1) {
-    //    fprintf(stderr, "[ERROR]: Failed to open pipe: %s\n", strerror(errno));
-    //}
 
-    
+    if (pipe == -1) {
+        fprintf(stderr, "[ERROR]: Failed to open pipe: %s\n", strerror(errno));
+        return -1;
+    }
+
 
     ssize_t wr = write(pipe, argv[2], strlen(argv[2]));
     if (wr == -1)
@@ -43,21 +42,56 @@ int main(int argc, char **argv) {
     
     int pipe_name = open(argv[2], O_RDONLY);
 
-    //Perguntar se é espera ativa
+    //TO ASK: espera ativa?
     while(pipe_name == -1) {
         pipe_name = open(argv[2], O_RDONLY);
     }
 
-    if(pipe_name == -1)
-        printf("erro");
+    char request[18];
 
-    char buffer[256];
+    ssize_t rd = read(pipe_name, &request, sizeof(request));
+    if (rd == -1) {
+        fprintf(stderr, "[ERROR]: Failed to read from pipe: %s\n", strerror(errno));
+        return -1;
+    }
 
-    ssize_t rd = read(pipe_name, &buffer, 5);
-    if (rd == -1)
-        printf("erro2");
+    if (strcmp(request, "request denied") == 0) {
+        close(pipe_name);
+        return -1;
+    }
 
-    printf("mensagem do mbroker->%s\n", buffer);
+    if (strcmp(request, "request accepted") == 0) {
+
+        printf("aceite\n");
+
+        pipe_name = open(argv[2], O_WRONLY);
+        
+        char message_to_write[256];
+        //Read messages to write in box
+        int x = 0;
+        while (x<2) {
+            printf("nova palavra\n");
+            int scan = scanf("%s", message_to_write);
+            if (scan == -1) {
+                fprintf(stderr, "[ERROR]: Failed to scan message: %s\n", strerror(errno));
+                return -1;        
+            }
+
+            ssize_t pipe_name_wr = write(pipe_name, message_to_write, strlen(message_to_write));
+            
+            if (pipe_name_wr == -1) {
+                fprintf(stderr, "[ERROR]: Failed to write in pipe: %s\n", strerror(errno));
+                return -1;
+            }
+
+            x++;
+        }
+        //printf("fechar pipe\n");
+        unlink(argv[2]);
+    }
+
+
+    printf("mensagem do mbroker->%s\n", request);
 
     return 0;
 }
