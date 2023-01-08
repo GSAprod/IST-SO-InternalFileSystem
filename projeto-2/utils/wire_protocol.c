@@ -37,10 +37,11 @@ int prot_aux_encode_registrations(__int8_t code, char pipe_path[256], char box_n
     memcpy(encoded + 2, pipe_path, 256*sizeof(char));
     encoded[258] = '|';
     memcpy(encoded + 259, box_name, 32*sizeof(char));
-    print_encoded(encoded, encoded_len);
 
     return 0;
 }
+
+
 
 int prot_aux_encode_inbox_response(__int8_t code, __int32_t return_code, char error_message[1024], char* encoded, size_t encoded_len) 
 {
@@ -52,7 +53,6 @@ int prot_aux_encode_inbox_response(__int8_t code, __int32_t return_code, char er
     encoded[1] = '|';    
     memcpy(encoded + 2, &return_code, sizeof(__int32_t));  // Maximum length of a 32-bit signed int is 11. 
     encoded[6] = '|';
-
     memcpy(encoded + 7, error_message, 1024*sizeof(char));
     return 0;
 }
@@ -65,7 +65,6 @@ int prot_aux_encode_message(__int8_t code, char message[1024], char* encoded, si
     memcpy(encoded, &code, sizeof(__int8_t));
     encoded[1] = '|';
     memcpy(encoded + 2, message, 1024*sizeof(char));
-    print_encoded(encoded, encoded_len);
 
     return 0;
 }
@@ -244,19 +243,168 @@ int prot_encode_sub_receive_message(char message[1024], char* encoded, size_t en
     return prot_aux_encode_message(CODE_SUB_RECEIVE_MESSAGE, message, encoded, encoded_len);
 }
 
+/*
+ * Returns the number of bytes to read after the request code:
+ *
+ * Input:
+ *   - code_encoded: the byte related to the request code
+ */
+int protocol_decode_request_n_bytes(char code_encoded) {
+    __int8_t code;
+    memcpy(&code, &code_encoded, sizeof(__int8_t));
+
+    switch (code) {
+        case 1:
+        case 2:
+        case 3:
+        case 5:
+            return 290;
+            break;
+        case 4:
+        case 6:
+            return 1029;
+            break;
+        case 7:
+            return 257;
+            break;
+        case 8:
+            return 62;
+            break;
+        case 9:
+        case 10:
+            return 1025;
+            break;
+        default:
+            return -1;
+    }
+}
+
+/*
+ * Decodes requests related to codes 1, 2, 3, 5 and 7.
+ * 
+ * Input:
+ *   - pipe_path: the string where the name of the pipe will be written
+ *   - box_name: the string where the name of the inbox will be written
+ *   - encoded: a pointer to the string that contains the encoded message
+ *   - encoded_len: the size of the encoded message
+ */
+int prot_decode_registrations(char pipe_path[256], char box_name[32], char* encoded, size_t encoded_len) {
+    if(encoded_len < 290)
+        return -1;
+
+    memcpy(pipe_path, encoded + 1*sizeof(char), 256*sizeof(char));
+    memcpy(box_name, encoded + 258*sizeof(char), 32*sizeof(char));
+    return 0;
+}
+
+/*
+ * Decodes messages related to codes 4 and 6.
+ * 
+ * Input:
+ *   - return_code: a pointer to the integer where the return code will be written
+ *   - error_message: the string where the error_message will be written
+ *   - encoded: a pointer to the string that contains the encoded message
+ *   - encoded_len: the size of the encoded message
+ */
+int prot_decode_inbox_response(__int32_t* return_code, char error_message[1024], char* encoded, size_t encoded_len) 
+{
+    if(encoded_len < 1029)
+        return -1;
+
+    memcpy(return_code, encoded + 1, sizeof(__int32_t));
+    printf("c: %d\n", *return_code);
+    memcpy(error_message, encoded + 6, 1024*sizeof(char));
+    return 0;
+}
 
 
+/*
+ * Decodes messages related to code 7.
+ * 
+ * Input:
+ *   - pipe_path: the string where the name of the pipe will be written
+ *   - encoded: a pointer to the string that contains the encoded message
+ *   - encoded_len: the size of the encoded message
+ */
+int prot_decode_inbox_listing_req(char pipe_path[256], char* encoded, size_t encoded_len) {
+    if(encoded_len < 258)
+        return -1;
+
+    memcpy(pipe_path, encoded + 1, 256*sizeof(char));
+
+    return 0;
+}
+
+/*
+ * Decodes messages related to code 8.
+ * 
+ * Input:
+ *   - last: points to the address to store the integer that decodes whether it's the last message or not
+ *   - error_message: the string to where the inbox name will be written
+ *   - box_size, n_publishers, n_subscribers: the addresses that will store some of the stats of a particular inbox
+ *   - encoded: a pointer to the string that contains the encoded message
+ *   - encoded_len: the size of the encoded message
+ */
+int prot_decode_inbox_listing_resp(__int8_t* last, char box_name[32], __int64_t* box_size, __int64_t* n_publishers, __int64_t* n_subscribers, char* encoded, size_t encoded_len) 
+{
+    if(encoded_len < 63)
+        return -1;
+    
+    memcpy(last, encoded + 1, sizeof(__int8_t));
+    memcpy(box_name, encoded + 3, 32*sizeof(char));
+    memcpy(box_size, encoded + 36, sizeof(__int64_t));
+    memcpy(n_publishers, encoded + 45, sizeof(__int64_t));
+    memcpy(n_subscribers, encoded + 54, sizeof(__int64_t));
+
+    return 0;
+}
+
+/*
+ * Decodes messages related to codes 9 and 10.
+ * 
+ * Input:
+ *   - message: the string where the inbox message will be written
+ *   - encoded: a pointer to the string that contains the encoded message
+ *   - encoded_len: the size of the encoded message
+ */
+int prot_decode_message(char message[1024], char* encoded, size_t encoded_len) {
+    if (encoded_len < 1026)
+        return -1;
+    memset(encoded, 0, encoded_len);
+
+    memcpy(message, encoded+1, 1024*sizeof(char));
+
+    return 0;
+}
+/*
 int main() {
     char pipe_path[1024];
     memset(pipe_path, 0, 1024);
-    strcpy(pipe_path, "123456789012345678901234567890112345678901234567890123456789011234567890123456789012345678901123456789012345678901234567890123412345678901234567890123456789011234567890123456789012345678901123456789012345678901234567890112345678901234567890123456789012341234567890123456789012345678901123456789012345678901234567890112345678901234567890123456789011234567890123456789012345678901234123456789012345678901234567890112345678901234567890123456789011234567890123456789012345678901123456789012345678901234567890123412345678901234567890123456789011234567890123456789012345678901123456789012345678901234567890112345678901234567890123456789012341234567890123456789012345678901123456789012345678901234567890112345678901234567890123456789011234567890123456789012345678901234123456789012345678901234567890112345678901234567890123456789011234567890123456789012345678901123456789012345678901234567890123412345678901234567890123456789011234567890123456789012345678901123456789012345678901234567890112345678901234567890123456789012345678901");
+    strcpy(pipe_path, "pipe_name");
 
-    char aaa[1030];
+    __int64_t integer = 345466846546153;
+    __int8_t d = 4;
+
+    char aaa[1031];
     memset(aaa, 0, 1030);
-    prot_encode_pub_send_message(pipe_path, aaa, sizeof(aaa));
+    prot_encode_inbox_listing_resp(d, pipe_path, integer, integer, integer, aaa, sizeof(aaa));
+    print_encoded(aaa, sizeof(aaa));
+
+    printf("bytes: %d\n", protocol_decode_request_n_bytes(aaa[0]));
+
+    char new_box_name[1030];
+    __int64_t newInt1;
+    __int64_t newInt2;
+    __int64_t newInt3;
+    __int8_t nn;
+    prot_decode_inbox_listing_resp(&nn, new_box_name, &newInt1, &newInt2, &newInt3, aaa + 1, sizeof(aaa));
+
+    printf("l: %d, box: %s, a: %ld, b: %ld, c: %ld\n", nn, new_box_name, newInt1, newInt2, newInt3);
+
 
     if (aaa[0] == 1) {
         aaa[0] = '1';
     }
     return 0;
 }
+*/
