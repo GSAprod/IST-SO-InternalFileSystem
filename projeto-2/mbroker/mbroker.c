@@ -16,6 +16,15 @@
 
 #define MAX_INBOXES 1024/sizeof(dir_entry_t)
 
+typedef struct box {
+    int subscribers;
+    int publishers;
+    char box_name[32];
+} Box;
+
+Box boxes[MAX_INBOXES];
+
+
 void print_usage() {
     fprintf(stderr, "usage: mbroker <pipename> <max_sessions>\n");
 }
@@ -29,8 +38,10 @@ void sigint_handler(int signum) {
 void write_in_box(char *box_name, char *message) {
 
     //if message is empty, don't write
-    if (strlen(message) == 0)
+    if (strlen(message) == 0){
+        printf("empty message");    
         return;
+    }
 
     int box = tfs_open(box_name, TFS_O_APPEND);
 
@@ -39,11 +50,26 @@ void write_in_box(char *box_name, char *message) {
     }
 
     tfs_close(box);
-    return;
 }
 
 
 void connect_publisher(char *pipe_name, char *box_name) {
+
+
+    //Verify if box exists
+    for (int i = 0; i<MAX_INBOXES; i++) {
+        if (strcmp(boxes[i].box_name, box_name) == 0) {
+            boxes[i].publishers++;
+            if (boxes[i].publishers > 1) {
+                printf("ja existe publisher ligado");
+                boxes[i].publishers--;
+                return;
+            }
+            break;
+        }
+        printf("caixa nao existe");
+        return;
+    }
 
     //Create session pipe
     mkfifo(pipe_name, 0666);
@@ -57,6 +83,7 @@ void connect_publisher(char *pipe_name, char *box_name) {
     ssize_t wr = write(pipe, "request accepted", strlen("request accepted"));
     if (wr == -1)
         return;
+
     
     char message_to_write[256];
     
@@ -92,6 +119,20 @@ void create_box(char *box_name, char *pipe_name) {
     //0 if box is created, -1 is box is not created
     int return_code = 0;
 
+    for (int i = 0; i<MAX_INBOXES; i++)
+        //If the box name already exists, don't try to create
+        if (strcmp(boxes[i].box_name, box_name) == 0) {
+            return_code = -1;
+            strcpy(error_message, "Error while creating box. Box not created.");
+            prot_encode_inbox_creation_resp(return_code, error_message, encoded, sizeof(encoded));
+
+            //Send responde to the create box request
+            ssize_t wr = write(pipe, encoded, sizeof(encoded));
+            if (wr == -1) {
+                fprintf(stderr, "[ERROR]: Failed to write in pipe: %s\n", strerror(errno));
+            }
+            return;
+        }
 
     int create_box = tfs_open(box_name, TFS_O_CREAT);
     
@@ -101,12 +142,22 @@ void create_box(char *box_name, char *pipe_name) {
         strcpy(error_message, "Error while creating box. Box not created.");
     }
 
+    //Adicionar caixa criada à lista
+    for (int i = 0; i<MAX_INBOXES; i++)
+        if (strlen(boxes[i].box_name) == 0) {
+            strcpy(boxes[i].box_name, box_name);
+            printf("subs->%d\n", boxes[i].subscribers);
+            break;
+        }
+
     prot_encode_inbox_creation_resp(return_code, error_message, encoded, sizeof(encoded));
 
     //Send responde to the create box request
     ssize_t wr = write(pipe, encoded, sizeof(encoded));
-    if (wr == -1)
+    if (wr == -1) {
+        fprintf(stderr, "[ERROR]: Failed to write in pipe: %s\n", strerror(errno));
         return;
+    }
 
     tfs_close(create_box);
 }
@@ -168,6 +219,16 @@ void remove_box(char *box_name, char *pipe_name) {
 
 
 void connect_subscriber(char *box_name, char *pipe_name) {
+
+    //Verify if box exists
+    for (int i = 0; i<MAX_INBOXES; i++) {
+        if (strcmp(boxes[i].box_name, box_name) == 0) {
+            boxes[i].subscribers++;
+            break;
+        }
+        printf("caixa nao existe");
+        return;
+    }
 
     pipe_name++;
     //TO DO: criar pipe para enviar as mensagens lidas ao subscriber

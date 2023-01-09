@@ -293,7 +293,7 @@ int prot_decode_registrations(char pipe_path[256], char box_name[32], char* enco
         return -1;
 
     memcpy(pipe_path, encoded + 2*sizeof(char), 256*sizeof(char));
-    memcpy(box_name, encoded + 260*sizeof(char), 32*sizeof(char));
+    memcpy(box_name, encoded + 259*sizeof(char), 32*sizeof(char));
     return 0;
 }
 
