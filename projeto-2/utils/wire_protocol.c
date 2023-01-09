@@ -312,7 +312,6 @@ int prot_decode_inbox_response(__int32_t* return_code, char error_message[1024],
         return -1;
 
     memcpy(return_code, encoded + 2, sizeof(__int32_t));
-    printf("c: %d\n", *return_code);
     memcpy(error_message, encoded + 7, 1024*sizeof(char));
     return 0;
 }

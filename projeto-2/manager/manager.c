@@ -80,7 +80,6 @@ int main(int argc, char **argv) {
 
         prot_decode_inbox_response(&return_code, error_message, encoded_reponse, sizeof(encoded_reponse));
         
-        printf("code:%d\n", return_code);
         //In case of error, print error message
         if (return_code == -1)
             printf("%s\n", error_message);

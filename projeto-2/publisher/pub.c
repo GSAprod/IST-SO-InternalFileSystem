@@ -78,10 +78,11 @@ int main(int argc, char **argv) {
         
         //Read messages to write in box
         int x=0;        
+        char message_to_write[256];
         printf("inserir\n");
         while (x<3) {
             x++;
-            char message_to_write[256];
+            memset(message_to_write, 0, sizeof(message_to_write));
             int scan = scanf("%s", message_to_write);
             if (scan == -1)
                 return -1;

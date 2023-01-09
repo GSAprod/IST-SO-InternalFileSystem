@@ -29,17 +29,12 @@ void print_usage() {
     fprintf(stderr, "usage: mbroker <pipename> <max_sessions>\n");
 }
 
-void sigint_handler(int signum) {
-    (void)signum;
-    printf("CTRL+D detected!\n");
-}
-
 
 void write_in_box(char *box_name, char *message) {
 
     //if message is empty, don't write
     if (strlen(message) == 0){
-        printf("empty message");    
+        printf("Empty message\n");    
         return;
     }
 
@@ -61,13 +56,12 @@ void connect_publisher(char *pipe_name, char *box_name) {
         if (strcmp(boxes[i].box_name, box_name) == 0) {
             boxes[i].publishers++;
             if (boxes[i].publishers > 1) {
-                printf("ja existe publisher ligado");
                 boxes[i].publishers--;
                 return;
             }
             break;
         }
-        printf("caixa nao existe");
+        printf("Box doesn't exist\n");
         return;
     }
 
@@ -86,19 +80,21 @@ void connect_publisher(char *pipe_name, char *box_name) {
 
     
     char message_to_write[256];
+    ssize_t bytes_read = 1;
     
     //TO ASK: espera ativa?
     pipe = open(pipe_name, O_RDONLY);
 
     //Wait for write until pipe is closed
-    while (pipe != -1) {
-        
-        ssize_t bytes_read = read(pipe, &message_to_write, sizeof(message_to_write));
-        if (bytes_read > 0){
-            write_in_box(box_name, message_to_write);
-            
+    while (bytes_read > 0) {
+
+        memset(message_to_write, 0, sizeof(message_to_write));
+        bytes_read = read(pipe, &message_to_write, sizeof(message_to_write));
+        if (bytes_read == -1) {
+            fprintf(stderr, "[ERROR]: Failed to read from pipe: %s\n", strerror(errno));
+            return;
         }
-        pipe = open(pipe_name, O_RDONLY);
+        write_in_box(box_name, message_to_write);
     }
 }
 
@@ -119,8 +115,8 @@ void create_box(char *box_name, char *pipe_name) {
     //0 if box is created, -1 is box is not created
     int return_code = 0;
 
+    //Verify if box already exists
     for (int i = 0; i<MAX_INBOXES; i++)
-        //If the box name already exists, don't try to create
         if (strcmp(boxes[i].box_name, box_name) == 0) {
             return_code = -1;
             strcpy(error_message, "Error while creating box. Box not created.");
@@ -142,11 +138,12 @@ void create_box(char *box_name, char *pipe_name) {
         strcpy(error_message, "Error while creating box. Box not created.");
     }
 
-    //Adicionar caixa criada à lista
+    //Add created box to the list
     for (int i = 0; i<MAX_INBOXES; i++)
         if (strlen(boxes[i].box_name) == 0) {
             strcpy(boxes[i].box_name, box_name);
-            printf("subs->%d\n", boxes[i].subscribers);
+            boxes[i].publishers = 0;
+            boxes[i].subscribers = 0;
             break;
         }
 
@@ -188,6 +185,18 @@ void list_boxes(char *pipe_name) {
 
 
 void remove_box(char *box_name, char *pipe_name) {
+
+    //Verify if box exists. If exists, remove it
+    for (int i = 0; i < MAX_INBOXES; i++) {
+        if (strcmp(boxes[i].box_name, box_name) == 0) {
+            memset(boxes[i].box_name, 0, sizeof(boxes[i].box_name));
+            boxes[i].publishers = 0;
+            boxes[i].subscribers = 0;
+            break;
+        }
+        printf("Box doesn't exist\n");
+        return;
+    }
     
     //Create session pipe
     mkfifo(pipe_name, 0666);
@@ -226,19 +235,16 @@ void connect_subscriber(char *box_name, char *pipe_name) {
             boxes[i].subscribers++;
             break;
         }
-        printf("caixa nao existe");
+        printf("Box doesn't exist\n");
         return;
     }
 
     pipe_name++;
     //TO DO: criar pipe para enviar as mensagens lidas ao subscriber
 
-    signal(SIGINT, sigint_handler);
-
+    //TO DO: Contar mensagens e mostrar ao detetar signal.
 
     int box = tfs_open(box_name, 0);
-    int message_counter = 1;
-    size_t indice = 0;
 
     char message[256];
 
@@ -260,33 +266,16 @@ void connect_subscriber(char *box_name, char *pipe_name) {
     for (int i = 0; i < bytes_read - 1; i++) {
         if (message[i] == '\0') {
             if(message[i] + 1 == '\0') {
-                indice = (size_t) i;
                 break;
             }
             else {
                 message[i] = '\n';
-                message_counter++;
             }
         }
     }
     message[bytes_read - 1] = '\0';
 
     printf("Messages:\n%s\n", message);
-
-    while(true) {
-        memset(message, 0, sizeof(message));
-        bytes_read = tfs_read(box, message, sizeof(message));
-        //Verificar que não se mostra a mesma mensagem
-        sleep(1);
-        printf("caracteres escritos-%ld\n", indice);
-        //Eliminar mensagens ja escritas
-        if (message[indice]+1 != '\0') {
-            memset(message, 0, indice);
-            printf("new message->%s\n", message);
-            message_counter++;
-            indice += strlen(message);
-        }
-    }
 
     tfs_close(box);
 }
