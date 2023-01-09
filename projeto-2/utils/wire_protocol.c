@@ -292,8 +292,8 @@ int prot_decode_registrations(char pipe_path[256], char box_name[32], char* enco
     if(encoded_len < 290)
         return -1;
 
-    memcpy(pipe_path, encoded + 1*sizeof(char), 256*sizeof(char));
-    memcpy(box_name, encoded + 258*sizeof(char), 32*sizeof(char));
+    memcpy(pipe_path, encoded + 2*sizeof(char), 256*sizeof(char));
+    memcpy(box_name, encoded + 260*sizeof(char), 32*sizeof(char));
     return 0;
 }
 
@@ -311,9 +311,9 @@ int prot_decode_inbox_response(__int32_t* return_code, char error_message[1024],
     if(encoded_len < 1029)
         return -1;
 
-    memcpy(return_code, encoded + 1, sizeof(__int32_t));
+    memcpy(return_code, encoded + 2, sizeof(__int32_t));
     printf("c: %d\n", *return_code);
-    memcpy(error_message, encoded + 6, 1024*sizeof(char));
+    memcpy(error_message, encoded + 7, 1024*sizeof(char));
     return 0;
 }
 

@@ -1,6 +1,7 @@
 #include "logging.h"
 #include "../fs/operations.h"
 #include "../fs/state.h"
+#include "../utils/wire_protocol.h"
 #include <fcntl.h>
 #include <errno.h>
 #include <sys/stat.h>
@@ -42,7 +43,7 @@ void write_in_box(char *box_name, char *message) {
 }
 
 
-void connect_publisher(char *pipe_name) {
+void connect_publisher(char *pipe_name, char *box_name) {
 
     //Create session pipe
     mkfifo(pipe_name, 0666);
@@ -67,24 +68,53 @@ void connect_publisher(char *pipe_name) {
         
         ssize_t bytes_read = read(pipe, &message_to_write, sizeof(message_to_write));
         if (bytes_read > 0){
-            write_in_box("/f1", message_to_write);
+            write_in_box(box_name, message_to_write);
+            
         }
         pipe = open(pipe_name, O_RDONLY);
     }
 }
 
 
-void create_box(char *box_name) {
+void create_box(char *box_name, char *pipe_name) {
+    
+    //Create session pipe
+    mkfifo(pipe_name, 0666);
+
+    int pipe = open(pipe_name, O_WRONLY);
+    if (pipe == -1) {
+        fprintf(stderr, "[ERROR]: Failed to open pipe: %s\n", strerror(errno));
+        return;
+    }
+
+    char encoded[1030];
+    char error_message[1024];
+    //0 if box is created, -1 is box is not created
+    int return_code = 0;
+
+
     int create_box = tfs_open(box_name, TFS_O_CREAT);
     
-    if (create_box == -1)
-        fprintf(stderr, "[ERROR]: Failed to create box: %s\n", strerror(errno));
+    //If the box is not created, create error message
+    if (create_box == -1){
+        return_code = -1;
+        strcpy(error_message, "Error while creating box. Box not created.");
+    }
+
+    prot_encode_inbox_creation_resp(return_code, error_message, encoded, sizeof(encoded));
+
+    //Send responde to the create box request
+    ssize_t wr = write(pipe, encoded, sizeof(encoded));
+    if (wr == -1)
+        return;
 
     tfs_close(create_box);
 }
 
 
-void list_boxes() {
+void list_boxes(char *pipe_name) {
+    pipe_name++;
+    //TO DO: Criar pipe e enviar caixas para o manager
 
     inode_t *root_dir_inode = inode_get(ROOT_DIR_INUM);
     if (root_dir_inode == NULL) {
@@ -106,14 +136,41 @@ void list_boxes() {
 }
 
 
-void remove_box(char *box_name) {
+void remove_box(char *box_name, char *pipe_name) {
+    
+    //Create session pipe
+    mkfifo(pipe_name, 0666);
 
-    if (tfs_unlink(box_name) == -1)
-        fprintf(stderr, "[ERROR]: Failed to remove box: %s\n", strerror(errno));
+    int pipe = open(pipe_name, O_WRONLY);
+    if (pipe == -1) {
+        fprintf(stderr, "[ERROR]: Failed to open pipe: %s\n", strerror(errno));
+        return;
+    }
+
+    char encoded[1030];
+    char error_message[1024];
+    //0 if box is removed, -1 is box is not removed
+    int return_code = 0;
+
+    //If the box is not removed, create error message
+    if (tfs_unlink(box_name) == -1) {
+        return_code = -1;
+        strcpy(error_message, "Error while removing box.");
+    }
+    
+    prot_encode_inbox_creation_resp(return_code, error_message, encoded, sizeof(encoded));
+
+    //Send responde to the create box request
+    ssize_t wr = write(pipe, encoded, sizeof(encoded));
+    if (wr == -1)
+        return;
 }
 
 
-void read_from_box(char *box_name) {
+void connect_subscriber(char *box_name, char *pipe_name) {
+
+    pipe_name++;
+    //TO DO: criar pipe para enviar as mensagens lidas ao subscriber
 
     signal(SIGINT, sigint_handler);
 
@@ -200,35 +257,50 @@ int main(int argc, char **argv) {
     if (pipewait == -1)
         return -1;
 
-    char buffer[256];
+    char buffer[291];
 
     while (true) {
         memset(buffer, 0, sizeof(buffer));
         
-        ssize_t rd = read(pipe, &buffer, 256);
+        ssize_t rd = read(pipe, &buffer, 291);
         if (rd == -1) {
             fprintf(stderr, "[ERROR]: Failed to read from pipe: %s\n", strerror(errno));
             return -1;
         }
 
-        printf("%s\n", buffer);
+        int code = buffer[0];
+        char pipe_name[256];
+        char box_name[32];
 
-        if (strcmp(buffer, "/f1") == 0 || strcmp(buffer, "/f2") == 0 || strcmp(buffer, "/f3") == 0)
-            create_box(buffer);
-
-        if (strcmp(buffer, "lista caixas") == 0)
-            list_boxes();
-
-        if (strcmp(buffer, "remove caixa") == 0)
-            remove_box("/f1");
-
-        if (strcmp(buffer, "session_pipe") == 0) {
-            printf("ok\n");
-            connect_publisher(buffer);
+        printf("buffer->%s\n", buffer);
+        printf("code->%d\n", code);
+    
+        switch (code) {
+            case 1:
+                prot_decode_registrations(pipe_name, box_name, buffer, sizeof(buffer));
+                connect_publisher(pipe_name, box_name);
+                break;
+            case 2:
+                prot_decode_registrations(pipe_name, box_name, buffer, sizeof(buffer));
+                connect_subscriber(box_name, pipe_name);
+                break;
+            case 3:
+                prot_decode_registrations(pipe_name, box_name, buffer, sizeof(buffer));
+                create_box(box_name, pipe_name);
+                break;
+            case 5:
+                prot_decode_registrations(pipe_name, box_name, buffer, sizeof(buffer));
+                remove_box(box_name, pipe_name);
+                break;
+            case 7:
+                prot_decode_inbox_listing_req(pipe_name, buffer, sizeof(buffer));
+                list_boxes(pipe_name);
+                break;
+            default:
+                printf("Invalid code\n");
         }
-
-        if (strcmp(buffer, "le da caixa") == 0)
-            read_from_box("/f1");
+        printf("pipe->%s\n", pipe_name);
+        printf("box->%s\n", box_name);
     }
 
     return -1;

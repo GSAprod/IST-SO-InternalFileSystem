@@ -1,4 +1,5 @@
 #include "logging.h"
+#include "../utils/wire_protocol.h"
 #include <fcntl.h>
 #include <stdio.h>
 #include <string.h>
@@ -36,8 +37,12 @@ int main(int argc, char **argv) {
         return -1;
     }
 
+    char encoded[291];
 
-    ssize_t wr = write(pipe, argv[2], strlen(argv[2]));
+    //Encode message with protocol
+    prot_encode_pub_registration(argv[2], argv[3], encoded, sizeof(encoded));
+
+    ssize_t wr = write(pipe, encoded, sizeof(encoded));
     if (wr == -1)
         return -1;
 
@@ -45,7 +50,7 @@ int main(int argc, char **argv) {
     int pipe_name = open(argv[2], O_RDONLY);
 
     //TO ASK: espera ativa?
-    while(pipe_name == -1) {
+    while (pipe_name == -1) {
         pipe_name = open(argv[2], O_RDONLY);
     }
 
@@ -67,6 +72,8 @@ int main(int argc, char **argv) {
         printf("aceite\n");
 
         pipe_name = open(argv[2], O_WRONLY);
+        if (pipe_name == -1)
+            printf("pipe nao aberto para escrita");
         
         
         //Read messages to write in box
