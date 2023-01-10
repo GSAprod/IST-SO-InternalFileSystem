@@ -50,52 +50,51 @@ void write_in_box(char *box_name, char *message) {
 
 void connect_publisher(char *pipe_name, char *box_name) {
 
-
+    int boxIndex;
     //Verify if box exists
     for (int i = 0; i<MAX_INBOXES; i++) {
         if (strcmp(boxes[i].box_name, box_name) == 0) {
-            boxes[i].publishers++;
-            if (boxes[i].publishers > 1) {
-                boxes[i].publishers--;
+            // TODO: Experimentar com >= no caso de existir mais que um publisher
+            if (boxes[i].publishers >= 0) {
+                printf("ja existe um publisher ligado\n");
+                unlink(pipe_name);
                 return;
             }
+            boxes[i].publishers++;
+            boxIndex = i;
             break;
         }
-        printf("Box doesn't exist\n");
+        printf("caixa nao existe");
+        unlink(pipe_name);
         return;
     }
 
-    //Create session pipe
-    mkfifo(pipe_name, 0666);
-
-    int pipe = open(pipe_name, O_WRONLY);
-    if (pipe == -1) {
-        fprintf(stderr, "[ERROR]: Failed to open pipe: %s\n", strerror(errno));
-        return;
-    }
-
-    ssize_t wr = write(pipe, "request accepted", strlen("request accepted"));
-    if (wr == -1)
-        return;
-
-    
     char message_to_write[256];
     ssize_t bytes_read = 1;
     
     //TO ASK: espera ativa?
-    pipe = open(pipe_name, O_RDONLY);
+    int session_pipe = open(pipe_name, O_RDONLY);
+    if (session_pipe == -1) {
+        fprintf(stderr, "[ERROR]: Failed to open pipe: %s\n", strerror(errno));
+        return;
+    }
 
     //Wait for write until pipe is closed
-    while (bytes_read > 0) {
+    while (true) {
 
         memset(message_to_write, 0, sizeof(message_to_write));
-        bytes_read = read(pipe, &message_to_write, sizeof(message_to_write));
+        bytes_read = read(session_pipe, &message_to_write, sizeof(message_to_write));
         if (bytes_read == -1) {
             fprintf(stderr, "[ERROR]: Failed to read from pipe: %s\n", strerror(errno));
             return;
-        }
+        } else if (bytes_read == 0) 
+            break;
+        printf("received: %s\n", message_to_write);
         write_in_box(box_name, message_to_write);
     }
+
+    close(session_pipe);
+    boxes[boxIndex].publishers--;
 }
 
 

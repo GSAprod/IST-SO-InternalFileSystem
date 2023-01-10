@@ -14,8 +14,6 @@ static void print_usage() {
 }
 
 int main(int argc, char **argv) {
-    (void)argc;
-    (void)argv;
 
     switch(argc) {
         case 4:
@@ -147,9 +145,6 @@ int main(int argc, char **argv) {
             return -1;    
         }
     }
-
-    WARN("unimplemented"); // TODO: implement
-
     
-    return -1;
+    return 0;
 }
