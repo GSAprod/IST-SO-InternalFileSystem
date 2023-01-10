@@ -349,11 +349,11 @@ int prot_decode_inbox_listing_resp(__int8_t* last, char box_name[32], __int64_t*
     if(encoded_len < 63)
         return -1;
     
-    memcpy(last, encoded + 1, sizeof(__int8_t));
-    memcpy(box_name, encoded + 3, 32*sizeof(char));
-    memcpy(box_size, encoded + 36, sizeof(__int64_t));
-    memcpy(n_publishers, encoded + 45, sizeof(__int64_t));
-    memcpy(n_subscribers, encoded + 54, sizeof(__int64_t));
+    memcpy(last, encoded + 2, sizeof(__int8_t));
+    memcpy(box_name, encoded + 4, 32*sizeof(char));
+    memcpy(box_size, encoded + 37, sizeof(__int64_t));
+    memcpy(n_publishers, encoded + 46, sizeof(__int64_t));
+    memcpy(n_subscribers, encoded + 55, sizeof(__int64_t));
 
     return 0;
 }

@@ -22,6 +22,7 @@ typedef struct box {
 } Box;
 
 Box boxes[MAX_INBOXES];
+int active_boxes = 0;
 
 
 void print_usage() {
@@ -55,7 +56,7 @@ void connect_publisher(char *pipe_name, char *box_name) {
         if (strcmp(boxes[i].box_name, box_name) == 0) {
             // TODO: Experimentar com >= no caso de existir mais que um publisher
             if (boxes[i].publishers > 0) {
-                printf("ja existe um publisher ligado\n");
+                printf("There is already a publisher connected\n");
                 unlink(pipe_name);
                 return;
             }
@@ -63,7 +64,7 @@ void connect_publisher(char *pipe_name, char *box_name) {
             boxIndex = i;
             break;
         }
-        printf("caixa nao existe");
+        printf("box doesn't exist\n");
         unlink(pipe_name);
         return;
     }
@@ -88,7 +89,6 @@ void connect_publisher(char *pipe_name, char *box_name) {
             return;
         } else if (bytes_read == 0) 
             break;
-        printf("received: %s\n", message_to_write);
         write_in_box(box_name, message_to_write);
     }
 
@@ -141,6 +141,7 @@ void create_box(char *box_name, char *pipe_name) {
             strcpy(boxes[i].box_name, box_name);
             boxes[i].publishers = 0;
             boxes[i].subscribers = 0;
+            active_boxes++;
             break;
         }
 
@@ -158,12 +159,44 @@ void create_box(char *box_name, char *pipe_name) {
 
 
 void list_boxes(char *pipe_name) {
-    pipe_name++;
-    //TO DO: Criar pipe e enviar caixas para o manager
+
+    int boxes_listed = 0;
+    __int8_t last = 0;
+    char box_name[32];
+    char encoded[63];
+    
+    
+    int pipe = open(pipe_name, O_WRONLY);
+    if (pipe == -1) {
+        fprintf(stderr, "[ERROR]: Failed to open pipe: %s\n", strerror(errno));
+        return;
+    }
+
+    if (active_boxes == 0) {
+        last = 1;
+        prot_encode_inbox_listing_resp(last, box_name, 0, 0, 0, encoded, sizeof(encoded));
+        return;
+    }
 
     for (int i = 0; i < MAX_INBOXES; i++)
         if (strlen(boxes[i].box_name) > 0) {
-            printf("caixa %d: %s\n", i, boxes[i].box_name);
+            if (boxes_listed + 1 == active_boxes) {
+                last = 1;
+            }
+            //Encode message to respond to list request
+            printf("last: %d\n", last);
+            prot_encode_inbox_listing_resp(last, boxes[i].box_name, sizeof(boxes[i].box_name),
+            boxes[i].subscribers, boxes[i].publishers, encoded, sizeof(encoded));
+
+            //Send responde to the list boxes request
+            ssize_t wr = write(pipe, encoded, sizeof(encoded));
+            if (wr == -1) {
+                fprintf(stderr, "[ERROR]: Failed to write in pipe: %s\n", strerror(errno));
+                return;
+            }
+            boxes_listed++;
+            if (boxes_listed == active_boxes)
+                return;
         }
 }
 
@@ -194,6 +227,7 @@ void remove_box(char *box_name, char *pipe_name) {
             memset(boxes[i].box_name, 0, sizeof(boxes[i].box_name));
             boxes[i].publishers = 0;
             boxes[i].subscribers = 0;
+            active_boxes--;
         }
     }
     
@@ -231,7 +265,7 @@ void connect_subscriber(char *box_name, char *pipe_name) {
     
     //Empty box
     if (bytes_read == 0) {
-        printf("Sem mensagens");
+        printf("No messages");
         tfs_close(box);
         return;
     }
@@ -301,8 +335,6 @@ int main(int argc, char **argv) {
         char pipe_name[256];
         char box_name[32];
 
-        printf("buffer->%s\n", buffer);
-        printf("code->%d\n", code);
     
         switch (code) {
             case 1:

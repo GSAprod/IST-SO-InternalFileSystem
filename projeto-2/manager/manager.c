@@ -58,6 +58,10 @@ int main(int argc, char **argv) {
 
     if (strcmp(argv[3], "create") == 0) {
 
+        char encoded_response[1030];
+        char error_message[1024];
+        int return_code;
+
         //Encode message with protocol
         prot_encode_inbox_creation_req(argv[2], argv[4], encoded, sizeof(encoded));
 
@@ -76,19 +80,14 @@ int main(int argc, char **argv) {
         }
 
 
-        char encoded_reponse[1030];
-
-        ssize_t rd_resp = read(pipe_name, &encoded_reponse, sizeof(encoded_reponse));
+        ssize_t rd_resp = read(pipe_name, &encoded_response, sizeof(encoded_response));
         if (rd_resp == -1) {
             fprintf(stderr, "[ERROR]: Failed to read from pipe: %s\n", strerror(errno));
             return -1;
         }
 
         //Decode and print error message
-        char error_message[1024];
-        int return_code;
-
-        prot_decode_inbox_response(&return_code, error_message, encoded_reponse, sizeof(encoded_reponse));
+        prot_decode_inbox_response(&return_code, error_message, encoded_response, sizeof(encoded_response));
         
         //In case of error, print error message
         if (return_code == -1)
@@ -98,6 +97,10 @@ int main(int argc, char **argv) {
 
 
     if (strcmp(argv[3], "remove") == 0) {
+
+        char encoded_response[1030];
+        char error_message[1024];
+        int return_code;
 
         //Encode message with protocol
         prot_encode_inbox_removal_req(argv[2], argv[4], encoded, sizeof(encoded));
@@ -112,20 +115,20 @@ int main(int argc, char **argv) {
         //Open and read session pipe
         int pipe_name = open(argv[2], O_RDONLY);
 
+        if (pipe_name == -1) {
+            fprintf(stderr, "[ERROR]: Failed to open pipe: %s\n", strerror(errno));
+            return -1;
+        }
 
-        char encoded_reponse[1030];
 
-        ssize_t rd_resp = read(pipe_name, &encoded_reponse, sizeof(encoded_reponse));
+        ssize_t rd_resp = read(pipe_name, &encoded_response, sizeof(encoded_response));
         if (rd_resp == -1) {
             fprintf(stderr, "[ERROR]: Failed to read from pipe: %s\n", strerror(errno));
             return -1;
         }
 
-        //Decode and print error message
-        char error_message[1024];
-        int return_code;
-
-        prot_decode_inbox_response(&return_code, error_message, encoded_reponse, sizeof(encoded_reponse));
+        //Decode and print error message (if needed)
+        prot_decode_inbox_response(&return_code, error_message, encoded_response, sizeof(encoded_response));
         
         //In case of error, print error message
         if (return_code == -1)
@@ -136,15 +139,46 @@ int main(int argc, char **argv) {
 
     if (strcmp(argv[3], "list") == 0) {
 
+        char encoded_response[63];
+        char box_name[32];
+        __int8_t last;
+        __int64_t box_size, n_publishers, n_subscribers;
+
         //Encode message with protocol
         prot_encode_inbox_listing_req(argv[2], encoded, sizeof(encoded));
-
-        //TO DO:Ler reposta do mbroker
 
         ssize_t wr = write(pipe, encoded, sizeof(encoded));
         if (wr == -1) {
             fprintf(stderr, "[ERROR]: Failed to write to pipe: %s\n", strerror(errno));
             return -1;    
+        }
+
+        //Open and read session pipe
+        int pipe_name = open(argv[2], O_RDONLY);
+
+        if (pipe_name == -1) {
+            fprintf(stderr, "[ERROR]: Failed to open pipe: %s\n", strerror(errno));
+            return -1;
+        }
+
+        while (last != 1) {
+        
+            //Read encoded message
+            ssize_t rd_resp = read(pipe_name, &encoded_response, sizeof(encoded_response));
+            if (rd_resp == -1) {
+                fprintf(stderr, "[ERROR]: Failed to read from pipe: %s\n", strerror(errno));
+                return -1;
+            }
+
+            //Decode and print parameters
+            prot_decode_inbox_listing_resp(&last, box_name, &box_size, &n_publishers,
+                &n_subscribers, encoded_response, sizeof(encoded_response));
+
+            printf("nome: %s\n", box_name);
+            printf("tamanho: %ld\n", box_size);
+            printf("pubs: %ld\n", n_publishers);
+            printf("subs: %ld\n", n_subscribers);
+            printf("last: %d\n", last);
         }
     }
 
