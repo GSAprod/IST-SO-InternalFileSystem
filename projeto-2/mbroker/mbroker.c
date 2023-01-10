@@ -99,6 +99,11 @@ void connect_publisher(char *pipe_name, char *box_name) {
 
 
 void create_box(char *box_name, char *pipe_name) {
+
+    char encoded[1030];
+    char error_message[1024];
+    //0 if box is created, -1 is box is not created
+    int return_code = 0;
     
     //Create session pipe
     mkfifo(pipe_name, 0666);
@@ -109,10 +114,6 @@ void create_box(char *box_name, char *pipe_name) {
         return;
     }
 
-    char encoded[1030];
-    char error_message[1024];
-    //0 if box is created, -1 is box is not created
-    int return_code = 0;
 
     //Verify if box already exists
     for (int i = 0; i<MAX_INBOXES; i++)
@@ -185,20 +186,14 @@ void list_boxes(char *pipe_name) {
 
 void remove_box(char *box_name, char *pipe_name) {
 
-    //Verify if box exists. If exists, remove it
-    for (int i = 0; i < MAX_INBOXES; i++) {
-        if (strcmp(boxes[i].box_name, box_name) == 0) {
-            memset(boxes[i].box_name, 0, sizeof(boxes[i].box_name));
-            boxes[i].publishers = 0;
-            boxes[i].subscribers = 0;
-            break;
-        }
-        printf("Box doesn't exist\n");
-        return;
-    }
-    
+    char encoded[1030];
+    char error_message[1024];
+    //0 if box is removed, -1 is box is not removed
+    int return_code = 0;
+
     //Create session pipe
     mkfifo(pipe_name, 0666);
+    
 
     int pipe = open(pipe_name, O_WRONLY);
     if (pipe == -1) {
@@ -206,10 +201,6 @@ void remove_box(char *box_name, char *pipe_name) {
         return;
     }
 
-    char encoded[1030];
-    char error_message[1024];
-    //0 if box is removed, -1 is box is not removed
-    int return_code = 0;
 
     //If the box is not removed, create error message
     if (tfs_unlink(box_name) == -1) {
