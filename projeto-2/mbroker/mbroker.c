@@ -88,12 +88,12 @@ void connect_publisher(char *pipe_name, char *box_name) {
         unlink(pipe_name);
         return;
     } else {
-        if (boxes[box_index].publishers > 1) {
-                printf("There is already a publisher connected\n");
-                unlink(pipe_name);
-                return;
-            }
-            boxes[box_index].publishers++;
+        if (boxes[box_index].publishers > 0) {
+            printf("There is already a publisher connected\n");
+            unlink(pipe_name);
+            return;
+        }
+        boxes[box_index].publishers++;
     }
 
 
@@ -113,6 +113,7 @@ void connect_publisher(char *pipe_name, char *box_name) {
             return;
         } else if (bytes_read == 0) 
             break;
+        printf("text: %s\n", message_to_write);
         write_in_box(box_name, message_to_write);
     }
 
