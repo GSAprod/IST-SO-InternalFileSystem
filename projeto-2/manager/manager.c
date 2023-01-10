@@ -174,6 +174,9 @@ int main(int argc, char **argv) {
             prot_decode_inbox_listing_resp(&last, box_name, &box_size, &n_publishers,
                 &n_subscribers, encoded_response, sizeof(encoded_response));
 
+            if (last == 1 && strlen(box_name) == 0)
+                break;
+
             printf("nome: %s\n", box_name);
             printf("tamanho: %ld\n", box_size);
             printf("pubs: %ld\n", n_publishers);

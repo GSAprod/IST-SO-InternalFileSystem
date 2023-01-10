@@ -34,6 +34,24 @@ void print_usage() {
     fprintf(stderr, "usage: mbroker <pipename> <max_sessions>\n");
 }
 
+void signalhandler(int sig) {
+    (void)sig;
+    printf("CRTL+C detected\n");
+}
+
+
+//Returns the box index, or -1 if it doens't exist
+int get_box_index(char *box_name) {
+
+    for (int i = 0; i<MAX_INBOXES; i++) {
+        if (strcmp(boxes[i].box_name, box_name) == 0) {
+            return i;
+        }
+    }
+
+    return -1;
+}
+
 
 void write_in_box(char *box_name, char *message) {
 
@@ -56,27 +74,23 @@ void write_in_box(char *box_name, char *message) {
 void connect_publisher(char *pipe_name, char *box_name) {
 
     char message_to_write[TFS_BLOCK_SIZE];
-    int boxIndex = -1;
 
     //Verify if box exists
-    for (int i = 0; i<MAX_INBOXES; i++) {
-        if (strcmp(boxes[i].box_name, box_name) == 0) {
-            if (boxes[i].publishers > 1) {
+    int box_index = get_box_index(box_name);
+
+    if (box_index == -1) {
+        printf("box doesn't exist\n");
+        unlink(pipe_name);
+        return;
+    } else {
+        if (boxes[box_index].publishers > 1) {
                 printf("There is already a publisher connected\n");
                 unlink(pipe_name);
                 return;
             }
-            boxes[i].publishers++;
-            boxIndex = i;
-            break;
-        } else
-            continue;
-        printf("box doesn't exist\n");
-        unlink(pipe_name);
-        return;
+            boxes[box_index].publishers++;
     }
 
-    
 
     int session_pipe = open(pipe_name, O_RDONLY);
     if (session_pipe == -1) {
@@ -98,7 +112,7 @@ void connect_publisher(char *pipe_name, char *box_name) {
     }
 
     close(session_pipe);
-    boxes[boxIndex].publishers--;
+    boxes[box_index].publishers--;
 }
 
 
@@ -107,8 +121,7 @@ void create_box(char *box_name, char *pipe_name) {
     char encoded[1030];
     char error_message[ERROR_MESSAGE_SIZE];
     //0 if box is created, -1 is box is not created
-    int return_code = 0;
-    
+    int return_code = 0, box_index;
 
     int pipe = open(pipe_name, O_WRONLY);
     if (pipe == -1) {
@@ -117,20 +130,23 @@ void create_box(char *box_name, char *pipe_name) {
     }
 
 
-    //Verify if box already exists
-    for (int i = 0; i<MAX_INBOXES; i++)
-        if (strcmp(boxes[i].box_name, box_name) == 0) {
-            return_code = -1;
-            strcpy(error_message, "Error while creating box. Box not created.");
-            prot_encode_inbox_creation_resp(return_code, error_message, encoded, sizeof(encoded));
+    box_index = get_box_index(box_name);
+    if (box_index >= 0) {
 
-            //Send responde to the create box request
-            ssize_t wr = write(pipe, encoded, sizeof(encoded));
-            if (wr == -1) {
-                fprintf(stderr, "[ERROR]: Failed to write in pipe: %s\n", strerror(errno));
-            }
-            return;
+        //Box already exists. Send error message
+        return_code = -1;
+        strcpy(error_message, "Error while creating box. Box not created.");
+        prot_encode_inbox_creation_resp(return_code, error_message, encoded, sizeof(encoded));
+        
+        //Send responde to the create box request
+        ssize_t wr = write(pipe, encoded, sizeof(encoded));
+        if (wr == -1) {
+            fprintf(stderr, "[ERROR]: Failed to write in pipe: %s\n", strerror(errno));
         }
+        close(pipe);
+        return;
+    }
+
 
     int create_box = tfs_open(box_name, TFS_O_CREAT);
     
@@ -181,6 +197,12 @@ void list_boxes(char *pipe_name) {
     if (active_boxes == 0) {
         last = 1;
         prot_encode_inbox_listing_resp(last, box_name, 0, 0, 0, encoded, sizeof(encoded));
+        
+        //Send responde to the list boxes request
+        ssize_t wr = write(pipe, encoded, sizeof(encoded));
+        if (wr == -1) {
+            fprintf(stderr, "[ERROR]: Failed to write in pipe: %s\n", strerror(errno));
+        }
         return;
     }
 
@@ -239,17 +261,17 @@ void remove_box(char *box_name, char *pipe_name) {
 
     //If the box is not removed, create error message
     if (tfs_unlink(box_name) == -1) {
+
         return_code = -1;
         strcpy(error_message, "Error while removing box.");
     } else {
+
         //Remove from box list
-        for (int i = 0; i < MAX_INBOXES; i++)
-        if (strcmp(boxes[i].box_name, box_name) == 0) {
-            memset(boxes[i].box_name, 0, sizeof(boxes[i].box_name));
-            boxes[i].publishers = 0;
-            boxes[i].subscribers = 0;
-            active_boxes--;
-        }
+        int box_index = get_box_index(box_name);
+        memset(boxes[box_index].box_name, 0, sizeof(boxes[box_index].box_name));
+        boxes[box_index].publishers = 0;
+        boxes[box_index].subscribers = 0;
+        active_boxes--;
     }
     
     prot_encode_inbox_creation_resp(return_code, error_message, encoded, sizeof(encoded));
