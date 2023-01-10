@@ -11,6 +11,7 @@
 #include <ctype.h>
 #include <string.h>
 #include <stdbool.h>
+#include <signal.h>
 
 
 #define MAX_INBOXES 1024/sizeof(dir_entry_t)
@@ -34,9 +35,13 @@ void print_usage() {
     fprintf(stderr, "usage: mbroker <pipename> <max_sessions>\n");
 }
 
+
 void signalhandler(int sig) {
     (void)sig;
-    printf("CRTL+C detected\n");
+    
+    tfs_destroy();
+    printf("Processo encerrado com sucesso\n");
+    exit(EXIT_SUCCESS);
 }
 
 
@@ -332,6 +337,10 @@ void connect_subscriber(char *box_name, char *pipe_name) {
 
     printf("Messages:\n%s\n", message);
 
+    while (true) {
+        
+    }
+
     tfs_close(box);
 }
 
@@ -347,6 +356,8 @@ int main(int argc, char **argv) {
         fprintf(stderr, "[ERROR]: Failed to init tfs: %s\n", strerror(errno));
         return -1;
     }
+
+    signal(SIGINT, &signalhandler);
 
     if (unlink(argv[1]) != 0 && errno != ENOENT) {
     fprintf(stderr, "[ERR]: unlink(%s) failed: %s\n", argv[1],

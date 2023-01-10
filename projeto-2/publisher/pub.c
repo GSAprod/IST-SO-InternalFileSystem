@@ -17,6 +17,10 @@ static void print_usage() {
 
 
 int main(int argc, char **argv) {
+
+    char encoded[291];
+    int x=0;        
+    char message_to_write[1024];
     
     if(argc != 4) {
         print_usage();
@@ -43,7 +47,6 @@ int main(int argc, char **argv) {
     }
 
     //Encode message with protocol and write onto the register pipe
-    char encoded[291];
     prot_encode_pub_registration(argv[2], argv[3], encoded, sizeof(encoded));
     ssize_t wr = write(register_pipe, encoded, sizeof(encoded));
     close(register_pipe);
@@ -59,8 +62,6 @@ int main(int argc, char **argv) {
     }
     
     //Read messages to write in box
-    int x=0;        
-    char message_to_write[256];
     printf("inserir\n");
     while (x<3) {
         x++;
