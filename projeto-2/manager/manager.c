@@ -21,23 +21,23 @@ int main(int argc, char **argv) {
         case 4:
             if (strcmp(argv[3], "list") != 0) {
                 print_usage();
-                return -1;
+                exit(EXIT_FAILURE);
             }
             break;
         case 5:
             if (strcmp(argv[3], "create") != 0 && strcmp(argv[3], "remove") != 0) {
                 print_usage();
-                return -1;
+                exit(EXIT_FAILURE);
             }
             break;
         default:
             print_usage();
-            return -1;
+            exit(EXIT_FAILURE);
     }
 
     if (!strcmp(argv[0], "manager")) {
         print_usage();
-        return -1;
+        exit(EXIT_FAILURE);
     }
 
     //Open register pipe
@@ -68,7 +68,7 @@ int main(int argc, char **argv) {
         ssize_t wr = write(pipe, encoded, sizeof(encoded));
         if (wr == -1) {
             fprintf(stderr, "[ERROR]: Failed to write to pipe: %s\n", strerror(errno));
-            return -1;    
+            exit(EXIT_FAILURE);
         }
 
         //Open and read session pipe
@@ -76,14 +76,14 @@ int main(int argc, char **argv) {
 
         if (pipe_name == -1) {
             fprintf(stderr, "[ERROR]: Failed to open pipe: %s\n", strerror(errno));
-            return -1;
+            exit(EXIT_FAILURE);
         }
 
 
         ssize_t rd_resp = read(pipe_name, &encoded_response, sizeof(encoded_response));
         if (rd_resp == -1) {
             fprintf(stderr, "[ERROR]: Failed to read from pipe: %s\n", strerror(errno));
-            return -1;
+            exit(EXIT_FAILURE);
         }
 
         //Decode and print error message
@@ -108,7 +108,7 @@ int main(int argc, char **argv) {
         ssize_t wr = write(pipe, encoded, sizeof(encoded));
         if (wr == -1) {
             fprintf(stderr, "[ERROR]: Failed to write to pipe: %s\n", strerror(errno));
-            return -1;    
+            exit(EXIT_FAILURE);
         }
 
 
@@ -117,14 +117,14 @@ int main(int argc, char **argv) {
 
         if (pipe_name == -1) {
             fprintf(stderr, "[ERROR]: Failed to open pipe: %s\n", strerror(errno));
-            return -1;
+            exit(EXIT_FAILURE);
         }
 
 
         ssize_t rd_resp = read(pipe_name, &encoded_response, sizeof(encoded_response));
         if (rd_resp == -1) {
             fprintf(stderr, "[ERROR]: Failed to read from pipe: %s\n", strerror(errno));
-            return -1;
+            exit(EXIT_FAILURE);
         }
 
         //Decode and print error message (if needed)
@@ -150,7 +150,7 @@ int main(int argc, char **argv) {
         ssize_t wr = write(pipe, encoded, sizeof(encoded));
         if (wr == -1) {
             fprintf(stderr, "[ERROR]: Failed to write to pipe: %s\n", strerror(errno));
-            return -1;    
+            exit(EXIT_FAILURE);   
         }
 
         //Open and read session pipe
@@ -158,7 +158,7 @@ int main(int argc, char **argv) {
 
         if (pipe_name == -1) {
             fprintf(stderr, "[ERROR]: Failed to open pipe: %s\n", strerror(errno));
-            return -1;
+            exit(EXIT_FAILURE);
         }
 
         while (last != 1) {
@@ -167,7 +167,7 @@ int main(int argc, char **argv) {
             ssize_t rd_resp = read(pipe_name, &encoded_response, sizeof(encoded_response));
             if (rd_resp == -1) {
                 fprintf(stderr, "[ERROR]: Failed to read from pipe: %s\n", strerror(errno));
-                return -1;
+                exit(EXIT_FAILURE);
             }
 
             //Decode and print parameters
@@ -187,6 +187,7 @@ int main(int argc, char **argv) {
 
     //Delete pipe. No longer needed
     unlink(argv[2]);
+    close(pipe);
     
     return 0;
 }

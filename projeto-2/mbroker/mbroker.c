@@ -303,10 +303,6 @@ void connect_subscriber(char *box_name, char *pipe_name) {
         return;
     }
 
-    pipe_name++;
-    //TO DO: criar pipe para enviar as mensagens lidas ao subscriber
-    //TO DO: Contar mensagens e mostrar ao detetar signal.
-
     int box = tfs_open(box_name, 0);
 
     ssize_t bytes_read = tfs_read(box, message, sizeof(message));
@@ -336,10 +332,21 @@ void connect_subscriber(char *box_name, char *pipe_name) {
     }
     message[bytes_read - 1] = '\0';
 
-    printf("Messages:\n%s\n", message);
+    int pipe = open(pipe_name, O_WRONLY);
+    if (pipe == -1) {
+        fprintf(stderr, "[ERROR]: Failed to open pipe: %s\n", strerror(errno));
+        tfs_close(box);
+        return;
+    }
 
-    while (true) {
-        
+
+    printf("Messages:\n%s\n", message);
+    
+    ssize_t wr = write(pipe, message, sizeof(message));
+    if (wr == -1) {
+        fprintf(stderr, "[ERROR]: Failed to write in pipe: %s\n", strerror(errno));
+        tfs_close(box);
+        return;
     }
 
     tfs_close(box);

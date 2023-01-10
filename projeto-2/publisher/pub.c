@@ -67,14 +67,13 @@ int main(int argc, char **argv) {
     ssize_t wr = write(register_pipe, encoded, sizeof(encoded));
     close(register_pipe);
     if (wr == -1) {
-        fprintf(stderr, "[ERROR]: Failed to write onto pipe: %s\n", strerror(errno));
+        fprintf(stderr, "[ERROR]: Failed to write in pipe: %s\n", strerror(errno));
         exit(EXIT_FAILURE);
     }
-    
-    // TODO: Fix problem
-    session_pipe = open(argv[2], O_WRONLY);
+
+    int session_pipe = open(argv[2], O_WRONLY);
     if (session_pipe == -1) {
-        fprintf(stderr, "[ERROR]: Failed to open newly created pipe: %s\n", strerror(errno));
+        fprintf(stderr, "[ERROR]: Failed to open pipe: %s\n", strerror(errno));
         exit(EXIT_FAILURE);
     }
 
@@ -107,6 +106,7 @@ int main(int argc, char **argv) {
     }
     printf("fecha pipe\n");
     close(session_pipe);
+    close(register_pipe);
     unlink(argv[2]);
 
     return 0;
