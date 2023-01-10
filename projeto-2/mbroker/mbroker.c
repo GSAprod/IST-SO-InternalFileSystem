@@ -11,7 +11,6 @@
 #include <ctype.h>
 #include <string.h>
 #include <stdbool.h>
-#include <signal.h>
 
 
 #define MAX_INBOXES 1024/sizeof(dir_entry_t)
@@ -55,7 +54,7 @@ void connect_publisher(char *pipe_name, char *box_name) {
     for (int i = 0; i<MAX_INBOXES; i++) {
         if (strcmp(boxes[i].box_name, box_name) == 0) {
             // TODO: Experimentar com >= no caso de existir mais que um publisher
-            if (boxes[i].publishers >= 0) {
+            if (boxes[i].publishers > 0) {
                 printf("ja existe um publisher ligado\n");
                 unlink(pipe_name);
                 return;
@@ -105,8 +104,6 @@ void create_box(char *box_name, char *pipe_name) {
     //0 if box is created, -1 is box is not created
     int return_code = 0;
     
-    //Create session pipe
-    mkfifo(pipe_name, 0666);
 
     int pipe = open(pipe_name, O_WRONLY);
     if (pipe == -1) {
@@ -164,22 +161,9 @@ void list_boxes(char *pipe_name) {
     pipe_name++;
     //TO DO: Criar pipe e enviar caixas para o manager
 
-    inode_t *root_dir_inode = inode_get(ROOT_DIR_INUM);
-    if (root_dir_inode == NULL) {
-        fprintf(stderr, "[ERROR]: Failed to get root directory inode: %s\n", strerror(errno));
-        return;
-    }
-
-    dir_entry_t *dir_entry = (dir_entry_t *)data_block_get(root_dir_inode->i_data_block);
-    
-    // Iterates over the directory entries looking for boxes
-    char box_name[50];
-
     for (int i = 0; i < MAX_INBOXES; i++)
-        if ((dir_entry[i].d_inumber != -1)) {
-
-            strcpy(box_name, dir_entry[i].d_name);
-            printf("%s\n", box_name);
+        if (strlen(boxes[i].box_name) > 0) {
+            printf("caixa %d: %s\n", i, boxes[i].box_name);
         }
 }
 
@@ -190,9 +174,6 @@ void remove_box(char *box_name, char *pipe_name) {
     char error_message[1024];
     //0 if box is removed, -1 is box is not removed
     int return_code = 0;
-
-    //Create session pipe
-    mkfifo(pipe_name, 0666);
     
 
     int pipe = open(pipe_name, O_WRONLY);
@@ -206,6 +187,14 @@ void remove_box(char *box_name, char *pipe_name) {
     if (tfs_unlink(box_name) == -1) {
         return_code = -1;
         strcpy(error_message, "Error while removing box.");
+    } else {
+        //Remove from box list
+        for (int i = 0; i < MAX_INBOXES; i++)
+        if (strcmp(boxes[i].box_name, box_name) == 0) {
+            memset(boxes[i].box_name, 0, sizeof(boxes[i].box_name));
+            boxes[i].publishers = 0;
+            boxes[i].subscribers = 0;
+        }
     }
     
     prot_encode_inbox_creation_resp(return_code, error_message, encoded, sizeof(encoded));

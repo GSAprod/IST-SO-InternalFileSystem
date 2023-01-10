@@ -329,7 +329,7 @@ int prot_decode_inbox_listing_req(char pipe_path[256], char* encoded, size_t enc
     if(encoded_len < 258)
         return -1;
 
-    memcpy(pipe_path, encoded + 1, 256*sizeof(char));
+    memcpy(pipe_path, encoded + 2, 256*sizeof(char));
 
     return 0;
 }

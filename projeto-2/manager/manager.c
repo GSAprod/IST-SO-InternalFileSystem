@@ -5,6 +5,8 @@
 #include <string.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <sys/stat.h>
+
 
 static void print_usage() {
     fprintf(stderr, "usage: \n"
@@ -43,6 +45,15 @@ int main(int argc, char **argv) {
     
     char encoded[291];
 
+    // Create the session pipe (remove the old one if it was already created)
+    if (unlink(argv[2]) != 0 && errno != ENOENT) {
+        fprintf(stderr, "[ERROR]: unlink(%s) failed: %s\n", argv[2],
+            strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+
+    //Create session pipe
+    mkfifo(argv[2], 0666);
 
 
     if (strcmp(argv[3], "create") == 0) {
@@ -59,10 +70,11 @@ int main(int argc, char **argv) {
         //Open and read session pipe
         int pipe_name = open(argv[2], O_RDONLY);
 
-        //TO ASK: espera ativa?
-        while (pipe_name == -1) {
-            pipe_name = open(argv[2], O_RDONLY);
+        if (pipe_name == -1) {
+            fprintf(stderr, "[ERROR]: Failed to open pipe: %s\n", strerror(errno));
+            return -1;
         }
+
 
         char encoded_reponse[1030];
 
@@ -81,9 +93,6 @@ int main(int argc, char **argv) {
         //In case of error, print error message
         if (return_code == -1)
             printf("%s\n", error_message);
-
-        //Delete pipe. No longer needed
-        unlink(argv[2]);
     }
 
 
@@ -103,10 +112,6 @@ int main(int argc, char **argv) {
         //Open and read session pipe
         int pipe_name = open(argv[2], O_RDONLY);
 
-        //TO ASK: espera ativa?
-        while (pipe_name == -1) {
-            pipe_name = open(argv[2], O_RDONLY);
-        }
 
         char encoded_reponse[1030];
 
@@ -125,9 +130,6 @@ int main(int argc, char **argv) {
         //In case of error, print error message
         if (return_code == -1)
             printf("%s\n", error_message);
-
-        //Delete pipe. No longer needed
-        unlink(argv[2]);
     }
 
 
@@ -145,6 +147,9 @@ int main(int argc, char **argv) {
             return -1;    
         }
     }
+
+    //Delete pipe. No longer needed
+    unlink(argv[2]);
     
     return 0;
 }

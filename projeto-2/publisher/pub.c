@@ -56,7 +56,7 @@ int main(int argc, char **argv) {
     if (pipe_name == -1) {
         fprintf(stderr, "[ERROR]: Failed to open newly created pipe: %s\n", strerror(errno));
         exit(EXIT_FAILURE);
-    } 
+    }
     
     //Read messages to write in box
     int x=0;        
