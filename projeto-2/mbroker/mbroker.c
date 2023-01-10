@@ -88,8 +88,10 @@ void connect_publisher(char *pipe_name, char *box_name) {
         unlink(pipe_name);
         return;
     } else {
-        if (boxes[box_index].publishers > 0) {
+        if (boxes[box_index].publishers >= 0) {
             printf("There is already a publisher connected\n");
+            int p = open(pipe_name, O_RDONLY);
+            close(p);
             unlink(pipe_name);
             return;
         }

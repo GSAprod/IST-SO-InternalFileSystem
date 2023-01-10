@@ -17,12 +17,11 @@ static void print_usage() {
 
 void signalHandler(int signal) {
     (void)signal;
-    if(register_pipe != -1) {
+    if(register_pipe != -1)
         close(register_pipe);
-    }
-    if(session_pipe != -1) {
+    if(session_pipe != -1)
         close(session_pipe);
-    }
+    printf("INFO: CTRL+C");
     exit(0);
 }
 
@@ -57,7 +56,7 @@ int main(int argc, char **argv) {
     //Register pipe
     register_pipe = open(argv[1], O_WRONLY);
     if (register_pipe == -1) {
-        fprintf(stderr, "[ERROR]: Failed to open pipe: %s\n", strerror(errno));
+        fprintf(stderr, "[ERROR]: Failed to open pipe kjsdfhsdkfj: %s\n", strerror(errno));
         exit(EXIT_FAILURE);
         return -1;
     }
@@ -73,7 +72,7 @@ int main(int argc, char **argv) {
 
     session_pipe = open(argv[2], O_WRONLY);
     if (session_pipe == -1) {
-        fprintf(stderr, "[ERROR]: Failed to open pipe: %s\n", strerror(errno));
+        fprintf(stderr, "[ERROR]: Failed to open pipe 123: %s\n", strerror(errno));
         exit(EXIT_FAILURE);
     }
 
@@ -89,16 +88,15 @@ int main(int argc, char **argv) {
         printf("palavra->%s\n", message_to_write);
     
         ssize_t session_pipe_wr = write(session_pipe, message_to_write, strlen(message_to_write));
-        
+
+        // TODO: Check session_pipe_wr
         if (session_pipe_wr == -1) {
-            if(errno == EPIPE) {
-                printf("Pipe fechado pelo mbroker. A terminar.\n");
-                break;
-            } else {
-                fprintf(stderr, "[ERROR]: Failed to write in pipe: %s\n", strerror(errno));
-                close(session_pipe);
-                exit(EXIT_FAILURE);
-            }
+            fprintf(stderr, "[ERROR]: Failed to write in pipe: %s\n", strerror(errno));
+            close(session_pipe);
+            exit(EXIT_FAILURE);
+        } else if(session_pipe_wr == 0) {
+            printf("[INFO] Pipe fechado pelo mbroker. A terminar.\n");
+            break;
         }
 
         memset(message_to_write, 0, sizeof(message_to_write));
