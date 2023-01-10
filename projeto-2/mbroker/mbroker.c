@@ -14,11 +14,16 @@
 
 
 #define MAX_INBOXES 1024/sizeof(dir_entry_t)
+#define BOX_NAME_SIZE 32
+#define SESSION_PIPE_NAME_SIZE 256
+#define ERROR_MESSAGE_SIZE 1024
+#define TFS_BLOCK_SIZE 1024
+
 
 typedef struct box {
     int subscribers;
     int publishers;
-    char box_name[32];
+    char box_name[BOX_NAME_SIZE];
 } Box;
 
 Box boxes[MAX_INBOXES];
@@ -50,12 +55,13 @@ void write_in_box(char *box_name, char *message) {
 
 void connect_publisher(char *pipe_name, char *box_name) {
 
-    int boxIndex;
+    char message_to_write[TFS_BLOCK_SIZE];
+    int boxIndex = -1;
+
     //Verify if box exists
     for (int i = 0; i<MAX_INBOXES; i++) {
         if (strcmp(boxes[i].box_name, box_name) == 0) {
-            // TODO: Experimentar com >= no caso de existir mais que um publisher
-            if (boxes[i].publishers > 0) {
+            if (boxes[i].publishers > 1) {
                 printf("There is already a publisher connected\n");
                 unlink(pipe_name);
                 return;
@@ -63,16 +69,15 @@ void connect_publisher(char *pipe_name, char *box_name) {
             boxes[i].publishers++;
             boxIndex = i;
             break;
-        }
+        } else
+            continue;
         printf("box doesn't exist\n");
         unlink(pipe_name);
         return;
     }
 
-    char message_to_write[256];
-    ssize_t bytes_read = 1;
     
-    //TO ASK: espera ativa?
+
     int session_pipe = open(pipe_name, O_RDONLY);
     if (session_pipe == -1) {
         fprintf(stderr, "[ERROR]: Failed to open pipe: %s\n", strerror(errno));
@@ -83,7 +88,7 @@ void connect_publisher(char *pipe_name, char *box_name) {
     while (true) {
 
         memset(message_to_write, 0, sizeof(message_to_write));
-        bytes_read = read(session_pipe, &message_to_write, sizeof(message_to_write));
+        ssize_t bytes_read = read(session_pipe, &message_to_write, sizeof(message_to_write));
         if (bytes_read == -1) {
             fprintf(stderr, "[ERROR]: Failed to read from pipe: %s\n", strerror(errno));
             return;
@@ -100,7 +105,7 @@ void connect_publisher(char *pipe_name, char *box_name) {
 void create_box(char *box_name, char *pipe_name) {
 
     char encoded[1030];
-    char error_message[1024];
+    char error_message[ERROR_MESSAGE_SIZE];
     //0 if box is created, -1 is box is not created
     int return_code = 0;
     
@@ -162,8 +167,9 @@ void list_boxes(char *pipe_name) {
 
     int boxes_listed = 0;
     __int8_t last = 0;
-    char box_name[32];
+    char box_name[BOX_NAME_SIZE];
     char encoded[63];
+    char inbox_message[TFS_BLOCK_SIZE];
     
     
     int pipe = open(pipe_name, O_WRONLY);
@@ -183,9 +189,24 @@ void list_boxes(char *pipe_name) {
             if (boxes_listed + 1 == active_boxes) {
                 last = 1;
             }
+
+
+            //TO ASK: Está correto contar os \0?
+
+
+            //Get size of box (bytes written)
+            int box = tfs_open(boxes[i].box_name, 0);
+            if (box == -1) {
+                fprintf(stderr, "[ERROR]: Failed to open box: %s\n", strerror(errno));
+                return;
+            }
+
+            ssize_t box_size = tfs_read(box, inbox_message, sizeof(inbox_message));
+            tfs_close(box);
+
             //Encode message to respond to list request
             printf("last: %d\n", last);
-            prot_encode_inbox_listing_resp(last, boxes[i].box_name, sizeof(boxes[i].box_name),
+            prot_encode_inbox_listing_resp(last, boxes[i].box_name, box_size,
             boxes[i].subscribers, boxes[i].publishers, encoded, sizeof(encoded));
 
             //Send responde to the list boxes request
@@ -204,7 +225,7 @@ void list_boxes(char *pipe_name) {
 void remove_box(char *box_name, char *pipe_name) {
 
     char encoded[1030];
-    char error_message[1024];
+    char error_message[ERROR_MESSAGE_SIZE];
     //0 if box is removed, -1 is box is not removed
     int return_code = 0;
     
@@ -242,6 +263,8 @@ void remove_box(char *box_name, char *pipe_name) {
 
 void connect_subscriber(char *box_name, char *pipe_name) {
 
+    char message[TFS_BLOCK_SIZE];
+
     //Verify if box exists
     for (int i = 0; i<MAX_INBOXES; i++) {
         if (strcmp(boxes[i].box_name, box_name) == 0) {
@@ -254,12 +277,9 @@ void connect_subscriber(char *box_name, char *pipe_name) {
 
     pipe_name++;
     //TO DO: criar pipe para enviar as mensagens lidas ao subscriber
-
     //TO DO: Contar mensagens e mostrar ao detetar signal.
 
     int box = tfs_open(box_name, 0);
-
-    char message[256];
 
     ssize_t bytes_read = tfs_read(box, message, sizeof(message));
     
@@ -332,8 +352,8 @@ int main(int argc, char **argv) {
         }
 
         int code = buffer[0];
-        char pipe_name[256];
-        char box_name[32];
+        char pipe_name[SESSION_PIPE_NAME_SIZE];
+        char box_name[BOX_NAME_SIZE];
 
     
         switch (code) {
