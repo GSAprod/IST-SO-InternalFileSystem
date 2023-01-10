@@ -84,7 +84,7 @@ void connect_publisher(char *pipe_name, char *box_name) {
     int box_index = get_box_index(box_name);
 
     if (box_index == -1) {
-        printf("box doesn't exist\n");
+        printf("Box doesn't exist\n");
         unlink(pipe_name);
         return;
     } else {
@@ -113,7 +113,6 @@ void connect_publisher(char *pipe_name, char *box_name) {
             return;
         } else if (bytes_read == 0) 
             break;
-        printf("text: %s\n", message_to_write);
         write_in_box(box_name, message_to_write);
     }
 
@@ -292,15 +291,15 @@ void remove_box(char *box_name, char *pipe_name) {
 void connect_subscriber(char *box_name, char *pipe_name) {
 
     char message[TFS_BLOCK_SIZE];
+    char encoded[1026];
 
-    //Verify if box exists
-    for (int i = 0; i<MAX_INBOXES; i++) {
-        if (strcmp(boxes[i].box_name, box_name) == 0) {
-            boxes[i].subscribers++;
-            break;
-        }
+
+    int box_index = get_box_index(box_name);
+    if (box_index == -1) {
         printf("Box doesn't exist\n");
-        return;
+        int p = open(pipe_name, O_RDONLY);
+        close(p);
+        unlink(pipe_name);
     }
 
     int box = tfs_open(box_name, 0);
@@ -340,9 +339,11 @@ void connect_subscriber(char *box_name, char *pipe_name) {
     }
 
 
-    printf("Messages:\n%s\n", message);
+    printf("Messages mbroker:\n%s\n", message);
+
+    prot_encode_sub_receive_message(message, encoded, sizeof(encoded));
     
-    ssize_t wr = write(pipe, message, sizeof(message));
+    ssize_t wr = write(pipe, encoded, sizeof(encoded));
     if (wr == -1) {
         fprintf(stderr, "[ERROR]: Failed to write in pipe: %s\n", strerror(errno));
         tfs_close(box);

@@ -29,6 +29,7 @@ int main(int argc, char **argv) {
             strerror(errno));
         exit(EXIT_FAILURE);
     }
+
     if(mkfifo(argv[2], 0666) == -1) {
         fprintf(stderr, "[ERROR]: Failed to create pipe: %s\n", strerror(errno));
         exit(EXIT_FAILURE);
@@ -37,13 +38,6 @@ int main(int argc, char **argv) {
     //Register pipe
     int pipe = open(argv[1], O_WRONLY);
     if (pipe == -1) {
-        fprintf(stderr, "[ERROR]: Failed to open pipe: %s\n", strerror(errno));
-        exit(EXIT_FAILURE);
-    }
-
-    //Session pipe
-    int pipe_name = open(argv[2], O_RDONLY);
-    if (pipe_name == -1) {
         fprintf(stderr, "[ERROR]: Failed to open pipe: %s\n", strerror(errno));
         exit(EXIT_FAILURE);
     }
@@ -58,6 +52,13 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
+    //Session pipe
+    int pipe_name = open(argv[2], O_RDONLY);
+    if (pipe_name == -1) {
+        fprintf(stderr, "[ERROR]: Failed to open pipe: %s\n", strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+
     //Decode response from mbroker
     ssize_t rd_resp = read(pipe_name, encoded_response, sizeof(encoded_response));
     if (rd_resp == -1) {
@@ -66,7 +67,6 @@ int main(int argc, char **argv) {
     }
 
     prot_decode_message(inbox_message, encoded_response, sizeof(encoded_response));
-
 
     printf("Messages:\n%s\n", inbox_message);
 

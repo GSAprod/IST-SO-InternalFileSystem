@@ -369,9 +369,8 @@ int prot_decode_inbox_listing_resp(__int8_t* last, char box_name[32], __int64_t*
 int prot_decode_message(char message[1024], char* encoded, size_t encoded_len) {
     if (encoded_len < 1026)
         return -1;
-    memset(encoded, 0, encoded_len);
 
-    memcpy(message, encoded+1, 1024*sizeof(char));
+    memcpy(message, encoded+2, 1024*sizeof(char));
 
     return 0;
 }
