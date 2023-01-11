@@ -2,6 +2,7 @@
 #include "../fs/operations.h"
 #include "../fs/state.h"
 #include "../utils/wire_protocol.h"
+#include "../producer-consumer/producer-consumer.h"
 #include <fcntl.h>
 #include <errno.h>
 #include <sys/stat.h>
@@ -11,6 +12,7 @@
 #include <ctype.h>
 #include <string.h>
 #include <stdbool.h>
+#include <stdlib.h>
 #include <signal.h>
 #include <pthread.h>
 
@@ -300,9 +302,10 @@ void connect_subscriber(char *box_name, char *pipe_name) {
     int box_index = get_box_index(box_name);
     if (box_index == -1) {
         printf("Box doesn't exist\n");
-        int p = open(pipe_name, O_RDONLY);
+        int p = open(pipe_name, O_WRONLY);
         close(p);
         unlink(pipe_name);
+        return;
     }
 
     int box = tfs_open(box_name, 0);
@@ -341,8 +344,6 @@ void connect_subscriber(char *box_name, char *pipe_name) {
         return;
     }
 
-
-    printf("Messages mbroker:\n%s\n", message);
 
     prot_encode_sub_receive_message(message, encoded, sizeof(encoded));
     
@@ -384,10 +385,6 @@ int main(int argc, char **argv) {
         pthread_create(&threads[i], NULL, thread_test, NULL);
     }
 
-    for (int i = 0; i < max_sessions; i++) {
-        pthread_join(threads[i], NULL);
-    }
-
 
     signal(SIGINT, &signalhandler);
 
@@ -419,6 +416,9 @@ int main(int argc, char **argv) {
         int code = buffer[0];
         char pipe_name[SESSION_PIPE_NAME_SIZE];
         char box_name[BOX_NAME_SIZE];
+
+
+
 
     
         switch (code) {
