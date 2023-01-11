@@ -12,6 +12,7 @@
 #include <string.h>
 #include <stdbool.h>
 #include <signal.h>
+#include <pthread.h>
 
 
 #define MAX_INBOXES 1024/sizeof(dir_entry_t)
@@ -88,7 +89,7 @@ void connect_publisher(char *pipe_name, char *box_name) {
         unlink(pipe_name);
         return;
     } else {
-        if (boxes[box_index].publishers >= 0) {
+        if (boxes[box_index].publishers >= 1) {
             printf("There is already a publisher connected\n");
             int p = open(pipe_name, O_RDONLY);
             close(p);
@@ -355,10 +356,16 @@ void connect_subscriber(char *box_name, char *pipe_name) {
     tfs_close(box);
 }
 
+void *thread_test() {
+    sleep(1);
+    printf("thread_feita\n");
+    return NULL;
+}
+
 
 int main(int argc, char **argv) {
 
-    if(argc != 2) {
+    if(argc != 3) {
         print_usage();
         return -1;
     }
@@ -367,6 +374,20 @@ int main(int argc, char **argv) {
         fprintf(stderr, "[ERROR]: Failed to init tfs: %s\n", strerror(errno));
         return -1;
     }
+
+    int max_sessions;
+    max_sessions = atoi(argv[2]);
+
+    pthread_t threads[max_sessions];
+
+    for (int i = 0; i < max_sessions; i++) {
+        pthread_create(&threads[i], NULL, thread_test, NULL);
+    }
+
+    for (int i = 0; i < max_sessions; i++) {
+        pthread_join(threads[i], NULL);
+    }
+
 
     signal(SIGINT, &signalhandler);
 
