@@ -15,13 +15,22 @@ static void print_usage() {
     fprintf(stderr, "usage: pub <register_pipe_name> <pipe_name> <box_name>\n");
 }
 
-void signalHandler(int signal) {
+void sigIntHandler(int signal) {
     (void)signal;
     if(register_pipe != -1)
         close(register_pipe);
     if(session_pipe != -1)
         close(session_pipe);
-    printf("INFO: CTRL+C");
+    switch(signal) {
+        case SIGINT:
+            puts("INFO: CTRL+C");
+            break;
+        case SIGPIPE:
+            puts("Session pipe closed. Exiting");
+            break;
+        default:
+            break;
+    }
     exit(0);
 }
 
@@ -36,7 +45,11 @@ int main(int argc, char **argv) {
         return -1;
     }
 
-    if(signal(SIGINT, &signalHandler) == SIG_ERR) {
+    if(signal(SIGINT, &sigIntHandler) == SIG_ERR) {
+        fprintf(stderr, "[ERROR]: Failed to attach sigHandler to process\n");
+        exit(EXIT_FAILURE);
+    }
+    if(signal(SIGPIPE, &sigIntHandler) == SIG_ERR) {
         fprintf(stderr, "[ERROR]: Failed to attach sigHandler to process\n");
         exit(EXIT_FAILURE);
     }
