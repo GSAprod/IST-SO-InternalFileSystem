@@ -294,6 +294,7 @@ void list_boxes(char *pipe_name) {
 
     if (active_boxes == 0) {
         last = 1;
+        memset(box_name, '\0', sizeof(box_name));
         prot_encode_inbox_listing_resp(last, box_name, 0, 0, 0, encoded, sizeof(encoded));
         
         //Send responde to the list boxes request
@@ -309,9 +310,6 @@ void list_boxes(char *pipe_name) {
             if (boxes_listed + 1 == active_boxes) {
                 last = 1;
             }
-
-
-            //TO ASK: Está correto contar os \0?
 
 
             //Get size of box (bytes written)
@@ -394,6 +392,8 @@ void *thread_test() {
 }
 
 
+
+/*********************************** Main ************************************/
 int main(int argc, char **argv) {
 
     if(argc != 3) {
@@ -434,41 +434,43 @@ int main(int argc, char **argv) {
     if (pipewait == -1)
         return -1;
 
-    char buffer[291];
+    char encoded[291];
 
     while (true) {
-        memset(buffer, 0, sizeof(buffer));
+        memset(encoded, 0, sizeof(encoded));
         
-        ssize_t rd = read(pipe, &buffer, 291);
+        ssize_t rd = read(pipe, &encoded, 291);
         if (rd == -1) {
             fprintf(stderr, "[ERROR]: Failed to read from pipe: %s\n", strerror(errno));
             return -1;
         }
 
-        int code = buffer[0];
+        int code = encoded[0];
         char pipe_name[SESSION_PIPE_NAME_SIZE];
         char box_name[BOX_NAME_SIZE];
+
+        pcq_enqueue(&pc_queue, encoded);
 
     
         switch (code) {
             case 1:
-                prot_decode_registrations(pipe_name, box_name, buffer, sizeof(buffer));
+                prot_decode_registrations(pipe_name, box_name, encoded, sizeof(encoded));
                 connect_publisher(pipe_name, box_name);
                 break;
             case 2:
-                prot_decode_registrations(pipe_name, box_name, buffer, sizeof(buffer));
+                prot_decode_registrations(pipe_name, box_name, encoded, sizeof(encoded));
                 connect_subscriber(box_name, pipe_name);
                 break;
             case 3:
-                prot_decode_registrations(pipe_name, box_name, buffer, sizeof(buffer));
+                prot_decode_registrations(pipe_name, box_name, encoded, sizeof(encoded));
                 create_box(box_name, pipe_name);
                 break;
             case 5:
-                prot_decode_registrations(pipe_name, box_name, buffer, sizeof(buffer));
+                prot_decode_registrations(pipe_name, box_name, encoded, sizeof(encoded));
                 remove_box(box_name, pipe_name);
                 break;
             case 7:
-                prot_decode_inbox_listing_req(pipe_name, buffer, sizeof(buffer));
+                prot_decode_inbox_listing_req(pipe_name, encoded, sizeof(encoded));
                 list_boxes(pipe_name);
                 break;
             default:
@@ -478,3 +480,4 @@ int main(int argc, char **argv) {
 
     return -1;
 }
+/*****************************************************************************/
