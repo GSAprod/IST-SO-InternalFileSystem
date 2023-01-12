@@ -33,6 +33,7 @@ typedef struct box {
 Box boxes[MAX_INBOXES];
 int active_boxes = 0;
 
+pc_queue_t pc_queue;
 
 void print_usage() {
     fprintf(stderr, "usage: mbroker <pipename> <max_sessions>\n");
@@ -379,7 +380,9 @@ int main(int argc, char **argv) {
     int max_sessions;
     max_sessions = atoi(argv[2]);
 
+    /* Initialize the threads list and the queue */
     pthread_t threads[max_sessions];
+    pcq_create(&pc_queue, (size_t) max_sessions);
 
     for (int i = 0; i < max_sessions; i++) {
         pthread_create(&threads[i], NULL, thread_test, NULL);
