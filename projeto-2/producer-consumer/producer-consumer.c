@@ -5,8 +5,8 @@
 
 
 int pcq_create(pc_queue_t *queue, size_t capacity) {
-    void *queue_elements[capacity];
-    queue->pcq_buffer = queue_elements;
+    char *queue_elements[capacity];
+    queue->pcq_buffer = (void**) queue_elements;
 
     queue->pcq_capacity = capacity;
 
@@ -54,9 +54,11 @@ int pcq_enqueue(pc_queue_t *queue, void *elem) {
     while (pcq_isEmpty(queue)) 
         pthread_cond_wait(&queue->pcq_pusher_condvar, &queue->pcq_pusher_condvar_lock);
     
+    // TODO: Maybe add locks for head, tail, size????
     queue->pcq_buffer[queue->pcq_tail++] = elem;
     queue->pcq_tail = queue->pcq_tail % queue->pcq_capacity;
     queue->pcq_current_size++;
+    pthread_cond_signal(&queue->pcq_popper_condvar); // Signal or broadcast?
     pthread_mutex_unlock(&queue->pcq_pusher_condvar_lock);
     return 0;
 }
@@ -64,8 +66,15 @@ int pcq_enqueue(pc_queue_t *queue, void *elem) {
 
 
 void *pcq_dequeue(pc_queue_t *queue) {
+    pthread_mutex_lock(&queue->pcq_popper_condvar_lock);
+    while (pcq_isFull(queue)) 
+        pthread_cond_wait(&queue->pcq_popper_condvar, &queue->pcq_popper_condvar_lock);
+
+    // TODO: Maybe add locks for head, tail, size????
     queue->pcq_head = queue->pcq_head % queue->pcq_capacity;
     void* elem = queue->pcq_buffer[queue->pcq_head++];
     queue->pcq_current_size--;
+    pthread_cond_signal(&queue->pcq_pusher_condvar);  // Signal or broadcast?
+    pthread_mutex_unlock(&queue->pcq_popper_condvar_lock);
     return elem;
 }
