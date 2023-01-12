@@ -5,8 +5,8 @@
 
 
 int pcq_create(pc_queue_t *queue, size_t capacity) {
-    char *queue_elements[capacity];
-    queue->pcq_buffer = (void**) queue_elements;
+    void *queue_elements[capacity];
+    queue->pcq_buffer = queue_elements;
 
     pthread_mutex_init(&(queue->pcq_current_size_lock), NULL);
     queue->pcq_current_size = capacity;
@@ -33,17 +33,22 @@ int pcq_destroy(pc_queue_t *queue) {
     return 0;
 }
 
-
+int pcq_isEmpty(pc_queue_t *queue) {
+    return queue->pcq_head % queue->pcq_capacity == queue->pcq_tail;
+}
 
 int pcq_enqueue(pc_queue_t *queue, void *elem) {
-    queue++;
-    elem++;
+    queue->pcq_buffer[queue->pcq_tail++] = elem;
+    queue->pcq_tail = queue->pcq_tail % queue->pcq_capacity;
+    queue->pcq_current_size++;
     return 0;
 }
 
 
 
 void *pcq_dequeue(pc_queue_t *queue) {
-    queue++;
-    return NULL;
+    queue->pcq_head = queue->pcq_head % queue->pcq_capacity;
+    void* elem = queue->pcq_buffer[queue->pcq_head++];
+    queue->pcq_current_size--;
+    return elem;
 }
