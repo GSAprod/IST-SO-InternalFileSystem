@@ -44,6 +44,7 @@ void signalhandler(int sig) {
     (void)sig;
     
     tfs_destroy();
+    pcq_destroy(&pc_queue);
     printf("\n[INFO]: CTRL+C. Process closed successfully\n");
     exit(EXIT_SUCCESS);
 }
@@ -93,7 +94,6 @@ void connect_publisher(char *pipe_name, char *box_name) {
     int box_index = get_box_index(box_name);
 
     if (box_index == -1) {
-        fprintf(stdout, "%s\n", "NO BOXES FOUND");
         int p = open(pipe_name, O_RDONLY);
         close(p);
         unlink(pipe_name);
@@ -148,7 +148,6 @@ void connect_subscriber(char *box_name, char *pipe_name) {
 
     int box_index = get_box_index(box_name);
     if (box_index == -1) {
-        fprintf(stdout, "%s\n", "NO BOXES FOUND");
         int p = open(pipe_name, O_WRONLY);
         close(p);
         unlink(pipe_name);
@@ -385,9 +384,45 @@ void remove_box(char *box_name, char *pipe_name) {
 
 
 
-void *thread_test() {
+void *thread_manager() {
     sleep(1);
     printf("thread_feita\n");
+    char *encoded = (char*) pcq_dequeue(&pc_queue);
+    
+    int code = 6;
+    char pipe_name[SESSION_PIPE_NAME_SIZE];
+    char box_name[BOX_NAME_SIZE];
+    
+    
+    printf("element: %s\n", encoded);
+
+
+    switch (code) {
+            case 1:
+                prot_decode_registrations(pipe_name, box_name, encoded, sizeof(encoded));
+                connect_publisher(pipe_name, box_name);
+                break;
+            case 2:
+                prot_decode_registrations(pipe_name, box_name, encoded, sizeof(encoded));
+                connect_subscriber(box_name, pipe_name);
+                break;
+            case 3:
+                prot_decode_registrations(pipe_name, box_name, encoded, sizeof(encoded));
+                create_box(box_name, pipe_name);
+                break;
+            case 5:
+                prot_decode_registrations(pipe_name, box_name, encoded, sizeof(encoded));
+                remove_box(box_name, pipe_name);
+                break;
+            case 7:
+                prot_decode_inbox_listing_req(pipe_name, encoded, sizeof(encoded));
+                list_boxes(pipe_name);
+                break;
+            default:
+                printf("Invalid code\n");
+        }
+
+
     return NULL;
 }
 
@@ -414,7 +449,7 @@ int main(int argc, char **argv) {
     pcq_create(&pc_queue, (size_t) max_sessions);
 
     for (int i = 0; i < max_sessions; i++) {
-        pthread_create(&threads[i], NULL, thread_test, NULL);
+        pthread_create(&threads[i], NULL, thread_manager, NULL);
     }
 
 
@@ -445,37 +480,7 @@ int main(int argc, char **argv) {
             return -1;
         }
 
-        int code = encoded[0];
-        char pipe_name[SESSION_PIPE_NAME_SIZE];
-        char box_name[BOX_NAME_SIZE];
-
         pcq_enqueue(&pc_queue, encoded);
-
-    
-        switch (code) {
-            case 1:
-                prot_decode_registrations(pipe_name, box_name, encoded, sizeof(encoded));
-                connect_publisher(pipe_name, box_name);
-                break;
-            case 2:
-                prot_decode_registrations(pipe_name, box_name, encoded, sizeof(encoded));
-                connect_subscriber(box_name, pipe_name);
-                break;
-            case 3:
-                prot_decode_registrations(pipe_name, box_name, encoded, sizeof(encoded));
-                create_box(box_name, pipe_name);
-                break;
-            case 5:
-                prot_decode_registrations(pipe_name, box_name, encoded, sizeof(encoded));
-                remove_box(box_name, pipe_name);
-                break;
-            case 7:
-                prot_decode_inbox_listing_req(pipe_name, encoded, sizeof(encoded));
-                list_boxes(pipe_name);
-                break;
-            default:
-                printf("Invalid code\n");
-        }
     }
 
     return -1;
