@@ -69,11 +69,11 @@ int main(int argc, char **argv) {
     prot_decode_message(inbox_message, encoded_response, sizeof(encoded_response));
 
     if (strlen(inbox_message) > 0)
-        printf("Messages:\n%ld\n", strlen(inbox_message));
+        fprintf(stdout, "%s\n", inbox_message);
 
     close(pipe);
     close(pipe_name);
+    unlink(argv[2]);
     
-
     return 0;
 }

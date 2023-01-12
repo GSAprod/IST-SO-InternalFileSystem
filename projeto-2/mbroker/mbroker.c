@@ -44,7 +44,7 @@ void signalhandler(int sig) {
     (void)sig;
     
     tfs_destroy();
-    printf("Processo encerrado com sucesso\n");
+    printf("\nProcesso encerrado com sucesso\n");
     exit(EXIT_SUCCESS);
 }
 
@@ -88,7 +88,7 @@ void connect_publisher(char *pipe_name, char *box_name) {
     int box_index = get_box_index(box_name);
 
     if (box_index == -1) {
-        printf("Box doesn't exist\n");
+        fprintf(stdout, "%s\n", "NO BOXES FOUND");
         unlink(pipe_name);
         return;
     } else {
@@ -187,6 +187,8 @@ void create_box(char *box_name, char *pipe_name) {
     }
 
     tfs_close(create_box);
+
+    fprintf(stdout, "OK\n");
 }
 
 
@@ -291,6 +293,8 @@ void remove_box(char *box_name, char *pipe_name) {
     ssize_t wr = write(pipe, encoded, sizeof(encoded));
     if (wr == -1)
         return;
+
+    fprintf(stdout, "OK\n");
 }
 
 
@@ -302,7 +306,7 @@ void connect_subscriber(char *box_name, char *pipe_name) {
 
     int box_index = get_box_index(box_name);
     if (box_index == -1) {
-        printf("Box doesn't exist\n");
+        fprintf(stdout, "%s\n", "NO BOXES FOUND");
         int p = open(pipe_name, O_WRONLY);
         close(p);
         unlink(pipe_name);

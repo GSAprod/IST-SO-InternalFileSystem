@@ -23,7 +23,7 @@ void sigIntHandler(int signal) {
         close(session_pipe);
     switch(signal) {
         case SIGINT:
-            puts("INFO: CTRL+C");
+            puts("\nINFO: CTRL+C");
             break;
         case SIGPIPE:
             puts("Session pipe closed. Exiting");

@@ -6,6 +6,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <stdbool.h>
 
 
 static void print_usage() {
@@ -91,7 +92,7 @@ int main(int argc, char **argv) {
         
         //In case of error, print error message
         if (return_code == -1)
-            printf("%s\n", error_message);
+            fprintf(stdout, "ERROR %s\n", error_message);
     }
 
 
@@ -132,7 +133,7 @@ int main(int argc, char **argv) {
         
         //In case of error, print error message
         if (return_code == -1)
-            printf("%s\n", error_message);
+            fprintf(stdout, "ERROR %s\n", error_message);
     }
 
 
@@ -161,6 +162,7 @@ int main(int argc, char **argv) {
             exit(EXIT_FAILURE);
         }
 
+
         while (last != 1) {
         
             //Read encoded message
@@ -174,14 +176,12 @@ int main(int argc, char **argv) {
             prot_decode_inbox_listing_resp(&last, box_name, &box_size, &n_publishers,
                 &n_subscribers, encoded_response, sizeof(encoded_response));
 
-            if (last == 1 && strlen(box_name) == 0)
+            if (last == 1 && strlen(box_name) == 0) {
+                fprintf(stdout, "NO BOXES FOUND\n");
                 break;
+            }
 
-            printf("nome: %s\n", box_name);
-            printf("tamanho: %ld\n", box_size);
-            printf("pubs: %ld\n", n_publishers);
-            printf("subs: %ld\n", n_subscribers);
-            printf("last: %d\n", last);
+            fprintf(stdout, "%s %zu %zu %zu\n", box_name, box_size, n_publishers, n_subscribers);
         }
     }
 
