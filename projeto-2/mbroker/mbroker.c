@@ -87,6 +87,7 @@ void write_in_box(char *box_name, char *message) {
 void connect_publisher(char *pipe_name, char *box_name) {
 
     char message_to_write[TFS_BLOCK_SIZE];
+    char encoded_message[1026];
 
     //Verify if box exists
     int box_index = get_box_index(box_name);
@@ -119,12 +120,15 @@ void connect_publisher(char *pipe_name, char *box_name) {
     while (true) {
 
         memset(message_to_write, 0, sizeof(message_to_write));
-        ssize_t bytes_read = read(session_pipe, &message_to_write, sizeof(message_to_write));
+        ssize_t bytes_read = read(session_pipe, &encoded_message, sizeof(encoded_message));
         if (bytes_read == -1) {
             fprintf(stderr, "[ERROR]: Failed to read from pipe: %s\n", strerror(errno));
             return;
         } else if (bytes_read == 0) 
             break;
+        
+        prot_decode_message(message_to_write, encoded_message, sizeof(encoded_message));
+
         write_in_box(box_name, message_to_write);
     }
 

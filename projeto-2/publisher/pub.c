@@ -38,7 +38,8 @@ void sigIntHandler(int signal) {
 int main(int argc, char **argv) {
 
     char encoded[291];
-    int x=0;        
+    char encoded_message[1026];
+    int message_counter = 0;        
     char message_to_write[1024];
     
     if(argc != 4) {
@@ -108,11 +109,13 @@ int main(int argc, char **argv) {
     int scan = scanf("%s", message_to_write);
 
     while (scan != EOF) {
-        x++;
+        message_counter++;
         if (scan == -1)
             return -1;
     
-        ssize_t session_pipe_wr = write(session_pipe, message_to_write, strlen(message_to_write));
+        prot_encode_pub_send_message(message_to_write, encoded_message, sizeof(encoded_message));
+
+        ssize_t session_pipe_wr = write(session_pipe, encoded_message, sizeof(encoded_message));
 
         if (session_pipe_wr == -1) {
             fprintf(stderr, "[ERROR]: Failed to write in pipe: %s\n", strerror(errno));
