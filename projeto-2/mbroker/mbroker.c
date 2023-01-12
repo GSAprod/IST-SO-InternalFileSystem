@@ -44,7 +44,7 @@ void signalhandler(int sig) {
     (void)sig;
     
     tfs_destroy();
-    printf("\nProcesso encerrado com sucesso\n");
+    printf("\n[INFO]: CTRL+C. Process closed successfully\n");
     exit(EXIT_SUCCESS);
 }
 
@@ -62,11 +62,12 @@ int get_box_index(char *box_name) {
 }
 
 
+
+/****************************** Write in a box *******************************/
 void write_in_box(char *box_name, char *message) {
 
     //if message is empty, don't write
     if (strlen(message) == 0){
-        printf("Empty message\n");    
         return;
     }
 
@@ -78,8 +79,11 @@ void write_in_box(char *box_name, char *message) {
 
     tfs_close(box);
 }
+/*****************************************************************************/
 
 
+
+/************************* Connect publisher to box **************************/
 void connect_publisher(char *pipe_name, char *box_name) {
 
     char message_to_write[TFS_BLOCK_SIZE];
@@ -89,6 +93,8 @@ void connect_publisher(char *pipe_name, char *box_name) {
 
     if (box_index == -1) {
         fprintf(stdout, "%s\n", "NO BOXES FOUND");
+        int p = open(pipe_name, O_RDONLY);
+        close(p);
         unlink(pipe_name);
         return;
     } else {
@@ -125,8 +131,80 @@ void connect_publisher(char *pipe_name, char *box_name) {
     close(session_pipe);
     boxes[box_index].publishers--;
 }
+/*****************************************************************************/
 
 
+
+/************************ Connect subscriber to a box ************************/
+void connect_subscriber(char *box_name, char *pipe_name) {
+
+    char message[TFS_BLOCK_SIZE];
+    char encoded[1026];
+
+
+    int box_index = get_box_index(box_name);
+    if (box_index == -1) {
+        fprintf(stdout, "%s\n", "NO BOXES FOUND");
+        int p = open(pipe_name, O_WRONLY);
+        close(p);
+        unlink(pipe_name);
+        return;
+    }
+
+    int box = tfs_open(box_name, 0);
+
+    ssize_t bytes_read = tfs_read(box, message, sizeof(message));
+    
+    //Empty box
+    if (bytes_read == 0) {
+        printf("No messages");
+        tfs_close(box);
+        return;
+    }
+    //Failed to read from box
+    if (bytes_read == -1) {
+        fprintf(stderr, "[ERROR]: Failed to read message: %s\n", strerror(errno));
+        tfs_close(box);
+        return;
+    }
+
+    //First read to a box. Do this to get all messages written before
+    for (int i = 0; i < bytes_read - 1; i++) {
+        if (message[i] == '\0') {
+            if(message[i] + 1 == '\0') {
+                break;
+            }
+            else {
+                message[i] = '\n';
+            }
+        }
+    }
+    message[bytes_read - 1] = '\0';
+
+    int pipe = open(pipe_name, O_WRONLY);
+    if (pipe == -1) {
+        fprintf(stderr, "[ERROR]: Failed to open pipe: %s\n", strerror(errno));
+        tfs_close(box);
+        return;
+    }
+
+
+    prot_encode_sub_receive_message(message, encoded, sizeof(encoded));
+    
+    ssize_t wr = write(pipe, encoded, sizeof(encoded));
+    if (wr == -1) {
+        fprintf(stderr, "[ERROR]: Failed to write in pipe: %s\n", strerror(errno));
+        tfs_close(box);
+        return;
+    }
+
+    tfs_close(box);
+}
+/*****************************************************************************/
+
+
+
+/******************************* Create a box ********************************/
 void create_box(char *box_name, char *pipe_name) {
 
     char encoded[1030];
@@ -190,8 +268,11 @@ void create_box(char *box_name, char *pipe_name) {
 
     fprintf(stdout, "OK\n");
 }
+/*****************************************************************************/
 
 
+
+/******************************** List boxes *********************************/
 void list_boxes(char *pipe_name) {
 
     int boxes_listed = 0;
@@ -240,7 +321,6 @@ void list_boxes(char *pipe_name) {
             tfs_close(box);
 
             //Encode message to respond to list request
-            printf("last: %d\n", last);
             prot_encode_inbox_listing_resp(last, boxes[i].box_name, box_size,
             boxes[i].subscribers, boxes[i].publishers, encoded, sizeof(encoded));
 
@@ -255,8 +335,11 @@ void list_boxes(char *pipe_name) {
                 return;
         }
 }
+/*****************************************************************************/
 
 
+
+/******************************* Remove a box ********************************/
 void remove_box(char *box_name, char *pipe_name) {
 
     char encoded[1030];
@@ -296,71 +379,9 @@ void remove_box(char *box_name, char *pipe_name) {
 
     fprintf(stdout, "OK\n");
 }
+/*****************************************************************************/
 
 
-void connect_subscriber(char *box_name, char *pipe_name) {
-
-    char message[TFS_BLOCK_SIZE];
-    char encoded[1026];
-
-
-    int box_index = get_box_index(box_name);
-    if (box_index == -1) {
-        fprintf(stdout, "%s\n", "NO BOXES FOUND");
-        int p = open(pipe_name, O_WRONLY);
-        close(p);
-        unlink(pipe_name);
-        return;
-    }
-
-    int box = tfs_open(box_name, 0);
-
-    ssize_t bytes_read = tfs_read(box, message, sizeof(message));
-    
-    //Empty box
-    if (bytes_read == 0) {
-        printf("No messages");
-        tfs_close(box);
-        return;
-    }
-    //Failed to read from box
-    if (bytes_read == -1) {
-        fprintf(stderr, "[ERROR]: Failed to read message: %s\n", strerror(errno));
-        tfs_close(box);
-        return;
-    }
-
-    for (int i = 0; i < bytes_read - 1; i++) {
-        if (message[i] == '\0') {
-            if(message[i] + 1 == '\0') {
-                break;
-            }
-            else {
-                message[i] = '\n';
-            }
-        }
-    }
-    message[bytes_read - 1] = '\0';
-
-    int pipe = open(pipe_name, O_WRONLY);
-    if (pipe == -1) {
-        fprintf(stderr, "[ERROR]: Failed to open pipe: %s\n", strerror(errno));
-        tfs_close(box);
-        return;
-    }
-
-
-    prot_encode_sub_receive_message(message, encoded, sizeof(encoded));
-    
-    ssize_t wr = write(pipe, encoded, sizeof(encoded));
-    if (wr == -1) {
-        fprintf(stderr, "[ERROR]: Failed to write in pipe: %s\n", strerror(errno));
-        tfs_close(box);
-        return;
-    }
-
-    tfs_close(box);
-}
 
 void *thread_test() {
     sleep(1);
@@ -424,9 +445,6 @@ int main(int argc, char **argv) {
         char pipe_name[SESSION_PIPE_NAME_SIZE];
         char box_name[BOX_NAME_SIZE];
 
-
-
-
     
         switch (code) {
             case 1:
@@ -452,8 +470,6 @@ int main(int argc, char **argv) {
             default:
                 printf("Invalid code\n");
         }
-        printf("pipe->%s\n", pipe_name);
-        printf("box->%s\n", box_name);
     }
 
     return -1;

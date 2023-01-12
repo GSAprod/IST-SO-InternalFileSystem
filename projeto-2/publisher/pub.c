@@ -9,6 +9,7 @@
 #include <sys/stat.h>
 #include <signal.h>
 
+
 int register_pipe = -1, session_pipe = -1;
 
 static void print_usage() {
@@ -23,7 +24,7 @@ void sigIntHandler(int signal) {
         close(session_pipe);
     switch(signal) {
         case SIGINT:
-            puts("\nINFO: CTRL+C");
+            puts("\n[INFO]: CTRL+C. Process closed successfully");
             break;
         case SIGPIPE:
             puts("Session pipe closed. Exiting");
@@ -89,33 +90,39 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
+
+    //If session pipe was closed by mbroker, this write will fail
+    ssize_t pipe_test = write(session_pipe, "", 1);
+
+    if (pipe_test == -1) {
+        fprintf(stderr, "[ERROR]: Failed to write in pipe: %s\n", strerror(errno));
+        close(session_pipe);
+        close(register_pipe);
+        exit(EXIT_FAILURE);
+    }
+
+
+
     //Read messages to write in box
-    printf("inserir\n");
-    memset(message_to_write, 0, sizeof(message_to_write));
+    printf("Insert words to write in box (CTRL+D to stop):\n");
     int scan = scanf("%s", message_to_write);
+
     while (scan != EOF) {
         x++;
         if (scan == -1)
             return -1;
-
-        printf("palavra->%s\n", message_to_write);
     
         ssize_t session_pipe_wr = write(session_pipe, message_to_write, strlen(message_to_write));
 
-        // TODO: Check session_pipe_wr
         if (session_pipe_wr == -1) {
             fprintf(stderr, "[ERROR]: Failed to write in pipe: %s\n", strerror(errno));
-            close(session_pipe);
             exit(EXIT_FAILURE);
-        } else if(session_pipe_wr == 0) {
-            printf("[INFO] Pipe fechado pelo mbroker. A terminar.\n");
-            break;
         }
 
         memset(message_to_write, 0, sizeof(message_to_write));
         scan = scanf("%s", message_to_write);
     }
-    printf("fecha pipe\n");
+    
     close(session_pipe);
     close(register_pipe);
     unlink(argv[2]);
