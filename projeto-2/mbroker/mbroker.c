@@ -384,6 +384,7 @@ void remove_box(char *box_name, char *pipe_name) {
 
 
 
+/****************************** Thread Manager *******************************/
 void *thread_manager() {
     sleep(1);
     printf("thread_feita\n");
@@ -425,6 +426,7 @@ void *thread_manager() {
 
     return NULL;
 }
+/*****************************************************************************/
 
 
 
