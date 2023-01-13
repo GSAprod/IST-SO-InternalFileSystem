@@ -61,8 +61,10 @@ int main(int argc, char **argv) {
     }
 
     //Create session pipe
-    mkfifo(argv[2], 0666);
-
+    if(mkfifo(argv[2], 0666) == -1) {
+        fprintf(stderr, "[ERROR]: Failed to create pipe: %s\n", strerror(errno));
+        exit(EXIT_FAILURE);
+    }
 
     if (strcmp(argv[3], "create") == 0) {
 

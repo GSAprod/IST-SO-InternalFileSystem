@@ -9,9 +9,13 @@
 
 int pcq_create(pc_queue_t *queue, size_t capacity) {
 
-    queue->pcq_buffer = malloc(capacity * sizeof(void*));
-    for (int i=0; i<5; i++) {
-        queue->pcq_buffer[i] = malloc(capacity * sizeof(void));
+    queue->pcq_buffer = (void**) malloc(sizeof(void*) * capacity);
+
+    if (queue->pcq_buffer == NULL)
+        return -1;
+
+    for (int i=0; i<capacity; i++) {
+        queue->pcq_buffer[i] = malloc(sizeof(char) * 1026);
     }
 
     queue->pcq_capacity = capacity;
@@ -37,18 +41,19 @@ int pcq_create(pc_queue_t *queue, size_t capacity) {
 
 int pcq_destroy(pc_queue_t *queue) {
     
-    for (int i=0; i<5; i++) {
-        free(queue->pcq_buffer[i]);
-    }
-    free(*queue->pcq_buffer);
-
     pthread_mutex_destroy(&(queue->pcq_current_size_lock));
     pthread_mutex_destroy(&(queue->pcq_head_lock));
     pthread_mutex_destroy(&(queue->pcq_tail_lock));
     pthread_mutex_destroy(&(queue->pcq_pusher_condvar_lock));
     pthread_mutex_destroy(&(queue->pcq_popper_condvar_lock));
-    pthread_cond_destroy(&(queue->pcq_pusher_condvar));
-    pthread_cond_destroy(&(queue->pcq_popper_condvar));
+    //pthread_cond_destroy(&(queue->pcq_pusher_condvar));
+    //pthread_cond_destroy(&(queue->pcq_popper_condvar));
+    
+    for (int i=0; i<queue->pcq_capacity; i++) {
+        free(queue->pcq_buffer[i]);
+    }
+    free(queue->pcq_buffer);
+
     return 0;
 }
 
@@ -72,7 +77,6 @@ int pcq_enqueue(pc_queue_t *queue, void *elem) {
     
 
     while (pcq_isFull(queue)) {
-        printf("enqueue loop\n");
         pthread_cond_wait(&(queue->pcq_pusher_condvar), &(queue->pcq_pusher_condvar_lock));
     }
 
@@ -102,7 +106,6 @@ void *pcq_dequeue(pc_queue_t *queue) {
 
 
     while (pcq_isEmpty(queue)) {
-        printf("dequeue loop\n");
         pthread_cond_wait(&(queue->pcq_popper_condvar), &(queue->pcq_popper_condvar_lock));
     }
 

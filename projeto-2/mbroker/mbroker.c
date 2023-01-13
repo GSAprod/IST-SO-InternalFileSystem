@@ -43,9 +43,10 @@ void print_usage() {
 void signalhandler(int sig) {
     (void)sig;
     
+
+    printf("\n[INFO]: CTRL+C. Process closed successfully\n");
     tfs_destroy();
     pcq_destroy(&pc_queue);
-    printf("\n[INFO]: CTRL+C. Process closed successfully\n");
     exit(EXIT_SUCCESS);
 }
 
@@ -386,6 +387,7 @@ void remove_box(char *box_name, char *pipe_name) {
 
 /****************************** Thread Manager *******************************/
 void *thread_manager() {
+
     sleep(1);
     printf("thread_feita\n");
     char encoded[1026];
@@ -394,12 +396,7 @@ void *thread_manager() {
     int code = encoded[0];
     char pipe_name[SESSION_PIPE_NAME_SIZE];
     char box_name[BOX_NAME_SIZE];
-    
-    
-    printf("element: %s\n", encoded);
-    printf("code: %d\n", encoded[0]);
-    
-
+        
 
     switch (code) {
         case 1:
@@ -426,9 +423,6 @@ void *thread_manager() {
             printf("Invalid code\n");
     }
 
-        printf("pipe_name: %s\n", pipe_name);
-        printf("box: %s\n", box_name);
-
     return NULL;
 }
 /*****************************************************************************/
@@ -448,8 +442,10 @@ int main(int argc, char **argv) {
         return -1;
     }
 
-    int max_sessions = 5;
-    //max_sessions = atoi(argv[2]);
+    signal(SIGINT, &signalhandler);
+
+    int max_sessions;
+    max_sessions = atoi(argv[2]);
 
     /* Initialize the threads list and the queue */
     pthread_t threads[max_sessions];
@@ -460,15 +456,16 @@ int main(int argc, char **argv) {
     }
 
 
-    signal(SIGINT, &signalhandler);
-
     if (unlink(argv[1]) != 0 && errno != ENOENT) {
     fprintf(stderr, "[ERR]: unlink(%s) failed: %s\n", argv[1],
             strerror(errno));
     exit(EXIT_FAILURE);
 }
     
-    mkfifo(argv[1], 0666);
+    if(mkfifo(argv[1], 0666) == -1) {
+        fprintf(stderr, "[ERROR]: Failed to create pipe: %s\n", strerror(errno));
+        exit(EXIT_FAILURE);
+    }
     
     int pipe = open(argv[1], O_RDONLY);
 
