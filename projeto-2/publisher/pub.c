@@ -39,7 +39,6 @@ int main(int argc, char **argv) {
 
     char encoded[291];
     char encoded_message[1026];
-    int message_counter = 0;        
     char message_to_write[1024];
     
     if(argc != 4) {
@@ -111,7 +110,6 @@ int main(int argc, char **argv) {
     int scan = scanf("%s", message_to_write);
 
     while (scan != EOF) {
-        message_counter++;
         if (scan == -1)
             return -1;
     

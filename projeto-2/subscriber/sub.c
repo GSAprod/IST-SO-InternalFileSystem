@@ -86,23 +86,19 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-
-    //Decode response from mbroker
     ssize_t rd_resp = read(session_pipe, encoded_response, sizeof(encoded_response));
+    while (rd_resp > 0) {
+        prot_decode_message(inbox_message, encoded_response, sizeof(encoded_response));
+
+        if (strlen(inbox_message) > 0)
+            fprintf(stdout, "%s\n", inbox_message);
+
+        rd_resp = read(session_pipe, encoded_response, sizeof(encoded_response));
+    }
+    //Decode response from mbroker
     if (rd_resp == -1) {
         fprintf(stderr, "[ERROR]: Failed to read from pipe: %s\n", strerror(errno));
-        exit(EXIT_FAILURE);
-    } else if (rd_resp == 0) {
-        puts("Session pipe closed. Exiting");
-        close(session_pipe);
-        close(register_pipe);
-        exit(0);
     }
-
-    prot_decode_message(inbox_message, encoded_response, sizeof(encoded_response));
-
-    if (strlen(inbox_message) > 0)
-        fprintf(stdout, "%s\n", inbox_message);
 
     close(register_pipe);
     close(session_pipe);

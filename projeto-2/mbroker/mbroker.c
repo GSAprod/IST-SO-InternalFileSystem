@@ -35,6 +35,8 @@ int active_boxes = 0;
 
 pc_queue_t pc_queue;
 
+pthread_cond_t write_cond;
+
 void print_usage() {
     fprintf(stderr, "usage: mbroker <pipename> <max_sessions>\n");
 }
@@ -43,10 +45,10 @@ void print_usage() {
 void signalhandler(int sig) {
     (void)sig;
     
-
-    printf("\n[INFO]: CTRL+C. Process closed successfully\n");
     tfs_destroy();
     pcq_destroy(&pc_queue);
+    //pthread_cond_destroy(&write_cond);
+    printf("\n[INFO]: CTRL+C. Process closed successfully\n");
     exit(EXIT_SUCCESS);
 }
 
@@ -135,6 +137,7 @@ void connect_publisher(char *box_name, char *pipe_name) {
         strcat(box_path, box_name);
 
         write_in_box(box_path, message_to_write);
+        pthread_cond_broadcast(&write_cond);
     }
 
     close(session_pipe);
@@ -147,10 +150,13 @@ void connect_publisher(char *box_name, char *pipe_name) {
 /************************ Connect subscriber to a box ************************/
 void connect_subscriber(char *box_name, char *pipe_name) {
 
-    char message[TFS_BLOCK_SIZE];
+    signal(SIGPIPE, SIG_IGN);
+
+    char buffer[TFS_BLOCK_SIZE];
     char box_path[BOX_NAME_SIZE];
     char encoded[1026];
 
+    pthread_mutex_t lock;
 
     int box_index = get_box_index(box_name);
     if (box_index == -1) {
@@ -162,37 +168,10 @@ void connect_subscriber(char *box_name, char *pipe_name) {
 
     strcpy(box_path, "/");
     strcat(box_path, box_name);
-
+    
     int box = tfs_open(box_path, 0);
 
-    ssize_t bytes_read = tfs_read(box, message, sizeof(message));
-    
-    //Empty box
-    if (bytes_read == 0) {
-        printf("No messages");
-        tfs_close(box);
-        return;
-    }
-    //Failed to read from box
-    if (bytes_read == -1) {
-        fprintf(stderr, "[ERROR]: Failed to read message: %s\n", strerror(errno));
-        tfs_close(box);
-        return;
-    }
-
-    //First read to a box. Do this to get all messages written before
-    for (int i = 0; i < bytes_read - 1; i++) {
-        if (message[i] == '\0') {
-            if(message[i] + 1 == '\0') {
-                break;
-            }
-            else {
-                message[i] = '\n';
-            }
-        }
-    }
-    message[bytes_read - 1] = '\0';
-
+    // Open the pipe to start communication
     int pipe = open(pipe_name, O_WRONLY);
     if (pipe == -1) {
         fprintf(stderr, "[ERROR]: Failed to open pipe: %s\n", strerror(errno));
@@ -200,17 +179,49 @@ void connect_subscriber(char *box_name, char *pipe_name) {
         return;
     }
 
+    pthread_mutex_init(&lock, NULL);
+    int able_to_read = 1;
+    while (able_to_read) { 
+        ssize_t bytes_read = tfs_read(box, buffer, sizeof(buffer));
 
-    prot_encode_sub_receive_message(message, encoded, sizeof(encoded));
-    
-    ssize_t wr = write(pipe, encoded, sizeof(encoded));
-    if (wr == -1) {
-        fprintf(stderr, "[ERROR]: Failed to write in pipe: %s\n", strerror(errno));
-        tfs_close(box);
-        return;
+        pthread_mutex_lock(&lock);
+        
+        //Empty box
+        if (bytes_read == 0) {
+            pthread_cond_wait(&write_cond, &lock);
+            pthread_mutex_unlock(&lock);
+            continue;
+        }
+        //Failed to read from box
+        if (bytes_read == -1) {
+            fprintf(stderr, "[ERROR]: Failed to read message: %s\n", strerror(errno));
+            break;
+        }
+
+        pthread_mutex_unlock(&lock);
+        //First read to a box. Do this to get all messages written before
+        for (int i = 0; i < bytes_read - 1; i++) {
+            if (buffer[i] == '\0') {
+                if(buffer[i] + 1 == '\0') {
+                    break;
+                }
+                else {
+                    buffer[i] = '\n';
+                }
+            }
+        }
+        buffer[bytes_read - 1] = '\0';
+
+        prot_encode_sub_receive_message(buffer, encoded, sizeof(encoded));
+        
+        ssize_t wr = write(pipe, encoded, sizeof(encoded));
+        if (wr == -1) {
+            able_to_read = 0;
+        }
     }
-
+    pthread_mutex_destroy(&lock);
     tfs_close(box);
+    close(pipe);
 }
 /*****************************************************************************/
 
@@ -413,12 +424,17 @@ void *thread_manager() {
         int code = encoded[0];
         char pipe_name[SESSION_PIPE_NAME_SIZE];
         char box_name[BOX_NAME_SIZE];
-
+        
+        
+        printf("element: %s\n", encoded);
+        printf("code: %d\n", encoded[0]);
+        
+        pthread_cond_broadcast(&write_cond);
 
         switch (code) {
             case 1:
                 prot_decode_registrations(pipe_name, box_name, encoded, sizeof(encoded));
-                connect_publisher(box_name, pipe_name);
+                    connect_publisher(box_name, pipe_name);
                 break;
             case 2:
                 prot_decode_registrations(pipe_name, box_name, encoded, sizeof(encoded));
@@ -469,10 +485,14 @@ int main(int argc, char **argv) {
     pthread_t threads[max_sessions];
     pcq_create(&pc_queue, (size_t) max_sessions);
 
+    pthread_cond_init(&write_cond, NULL);
+
     for (int i = 0; i < max_sessions; i++) {
         pthread_create(&threads[i], NULL, thread_manager, NULL);
     }
 
+
+    signal(SIGINT, &signalhandler);
 
     if (unlink(argv[1]) != 0 && errno != ENOENT) {
     fprintf(stderr, "[ERR]: unlink(%s) failed: %s\n", argv[1],
