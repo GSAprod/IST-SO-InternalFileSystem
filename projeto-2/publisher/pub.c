@@ -103,6 +103,8 @@ int main(int argc, char **argv) {
     }
 
 
+    //TO DO: usar getchar para nao separar frases
+
 
     //Read messages to write in box
     printf("Insert words to write in box (CTRL+D to stop):\n");

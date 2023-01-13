@@ -18,6 +18,13 @@ static void print_usage() {
 
 int main(int argc, char **argv) {
 
+
+
+    //TO DO: tirar barra do nome da caixa e pôr depois
+
+
+
+
     switch(argc) {
         case 4:
             if (strcmp(argv[3], "list") != 0) {

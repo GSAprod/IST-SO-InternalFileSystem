@@ -443,8 +443,8 @@ int main(int argc, char **argv) {
         return -1;
     }
 
-    int max_sessions;
-    max_sessions = atoi(argv[2]);
+    int max_sessions = 5;
+    //max_sessions = atoi(argv[2]);
 
     /* Initialize the threads list and the queue */
     pthread_t threads[max_sessions];
