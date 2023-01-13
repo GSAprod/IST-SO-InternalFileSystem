@@ -388,41 +388,46 @@ void remove_box(char *box_name, char *pipe_name) {
 void *thread_manager() {
     sleep(1);
     printf("thread_feita\n");
-    char *encoded = (char*) pcq_dequeue(&pc_queue);
-    
-    int code = 6;
+    char encoded[1026];
+    memcpy(encoded, (char*) pcq_dequeue(&pc_queue), sizeof(encoded));
+
+    int code = encoded[0];
     char pipe_name[SESSION_PIPE_NAME_SIZE];
     char box_name[BOX_NAME_SIZE];
     
     
     printf("element: %s\n", encoded);
+    printf("code: %d\n", encoded[0]);
+    
 
 
     switch (code) {
-            case 1:
-                prot_decode_registrations(pipe_name, box_name, encoded, sizeof(encoded));
-                connect_publisher(pipe_name, box_name);
-                break;
-            case 2:
-                prot_decode_registrations(pipe_name, box_name, encoded, sizeof(encoded));
-                connect_subscriber(box_name, pipe_name);
-                break;
-            case 3:
-                prot_decode_registrations(pipe_name, box_name, encoded, sizeof(encoded));
-                create_box(box_name, pipe_name);
-                break;
-            case 5:
-                prot_decode_registrations(pipe_name, box_name, encoded, sizeof(encoded));
-                remove_box(box_name, pipe_name);
-                break;
-            case 7:
-                prot_decode_inbox_listing_req(pipe_name, encoded, sizeof(encoded));
-                list_boxes(pipe_name);
-                break;
-            default:
-                printf("Invalid code\n");
-        }
+        case 1:
+            prot_decode_registrations(pipe_name, box_name, encoded, sizeof(encoded));
+            connect_publisher(pipe_name, box_name);
+            break;
+        case 2:
+            prot_decode_registrations(pipe_name, box_name, encoded, sizeof(encoded));
+            connect_subscriber(box_name, pipe_name);
+            break;
+        case 3:
+            prot_decode_registrations(pipe_name, box_name, encoded, sizeof(encoded));
+            create_box(box_name, pipe_name);
+            break;
+        case 5:
+            prot_decode_registrations(pipe_name, box_name, encoded, sizeof(encoded));
+            remove_box(box_name, pipe_name);
+            break;
+        case 7:
+            prot_decode_inbox_listing_req(pipe_name, encoded, sizeof(encoded));
+            list_boxes(pipe_name);
+            break;
+        default:
+            printf("Invalid code\n");
+    }
 
+        printf("pipe_name: %s\n", pipe_name);
+        printf("box: %s\n", box_name);
 
     return NULL;
 }

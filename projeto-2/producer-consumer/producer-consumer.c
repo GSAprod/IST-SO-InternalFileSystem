@@ -1,4 +1,5 @@
 #include <producer-consumer.h>
+#include "../utils/wire_protocol.h"
 #include <pthread.h>
 #include <stdio.h>
 #include <string.h>
@@ -9,9 +10,9 @@
 int pcq_create(pc_queue_t *queue, size_t capacity) {
 
     queue->pcq_buffer = malloc(capacity * sizeof(void*));
-    for (int i=0; i<capacity; i++) {
+    for (int i=0; i<5; i++) {
         queue->pcq_buffer[i] = malloc(capacity * sizeof(void));
-    }    
+    }
 
     queue->pcq_capacity = capacity;
 
@@ -35,8 +36,11 @@ int pcq_create(pc_queue_t *queue, size_t capacity) {
 
 
 int pcq_destroy(pc_queue_t *queue) {
-    // TODO: Destroy mutexes, condvars, etc. (please wait)
-    queue++;
+    
+    for (int i=0; i<5; i++) {
+        free(queue->pcq_buffer[i]);
+    }
+    free(*queue->pcq_buffer);
 
     pthread_mutex_destroy(&(queue->pcq_current_size_lock));
     pthread_mutex_destroy(&(queue->pcq_head_lock));
@@ -72,10 +76,8 @@ int pcq_enqueue(pc_queue_t *queue, void *elem) {
         pthread_cond_wait(&(queue->pcq_pusher_condvar), &(queue->pcq_pusher_condvar_lock));
     }
 
-    char *x = (char*) elem;
-    
-    printf("enqueued element:%p\n", x);
-    memcpy((queue->pcq_buffer[queue->pcq_tail]), x, 1024);
+
+    memcpy((queue->pcq_buffer[queue->pcq_tail]), (char*) elem, 1026);
     queue->pcq_tail++;
     queue->pcq_tail = queue->pcq_tail % queue->pcq_capacity;
     queue->pcq_current_size++;
@@ -114,13 +116,6 @@ void *pcq_dequeue(pc_queue_t *queue) {
     pthread_mutex_unlock(&(queue->pcq_popper_condvar_lock));
     //pthread_mutex_unlock(&queue->pcq_current_size_lock);
     //pthread_mutex_unlock(&queue->pcq_head_lock);
-
-    for (int i=0; i<5; i++) {
-
-        char *y = elem;
-        
-        printf("returned element: %p\n", y);
-    }
 
     return elem;
 }
