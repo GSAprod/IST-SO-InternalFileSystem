@@ -46,8 +46,6 @@ int pcq_destroy(pc_queue_t *queue) {
     pthread_mutex_destroy(&(queue->pcq_tail_lock));
     pthread_mutex_destroy(&(queue->pcq_pusher_condvar_lock));
     pthread_mutex_destroy(&(queue->pcq_popper_condvar_lock));
-    //pthread_cond_destroy(&(queue->pcq_pusher_condvar));
-    //pthread_cond_destroy(&(queue->pcq_popper_condvar));
     
     for (int i=0; i<queue->pcq_capacity; i++) {
         free(queue->pcq_buffer[i]);
@@ -71,28 +69,23 @@ int pcq_isFull(pc_queue_t *queue) {
 
 int pcq_enqueue(pc_queue_t *queue, void *elem) {
     pthread_mutex_lock(&queue->pcq_pusher_condvar_lock);
-    //pthread_mutex_lock(&queue->pcq_current_size_lock);
-    //pthread_mutex_lock(&queue->pcq_tail_lock);
 
-    
 
     while (pcq_isFull(queue)) {
         pthread_cond_wait(&(queue->pcq_pusher_condvar), &(queue->pcq_pusher_condvar_lock));
     }
 
+    pthread_mutex_lock(&(queue->pcq_tail_lock));
 
     memcpy((queue->pcq_buffer[queue->pcq_tail]), (char*) elem, 1026);
     queue->pcq_tail++;
     queue->pcq_tail = queue->pcq_tail % queue->pcq_capacity;
     queue->pcq_current_size++;
 
-    //TO ASK: interessa ordem dos unlocks?
-    //TO ASK: usar trylocks?
+    pthread_mutex_unlock(&queue->pcq_tail_lock);
 
-    pthread_cond_signal(&(queue->pcq_popper_condvar)); // Signal or broadcast?
+    pthread_cond_signal(&(queue->pcq_popper_condvar));
     pthread_mutex_unlock(&(queue->pcq_pusher_condvar_lock));
-    //pthread_mutex_unlock(&queue->pcq_current_size_lock);
-    //pthread_mutex_unlock(&queue->pcq_tail_lock);
 
     return 0;
 }
@@ -101,24 +94,22 @@ int pcq_enqueue(pc_queue_t *queue, void *elem) {
 
 void *pcq_dequeue(pc_queue_t *queue) {
     pthread_mutex_lock(&(queue->pcq_popper_condvar_lock));
-    //pthread_mutex_lock(&queue->pcq_current_size_lock);
-    //pthread_mutex_lock(&queue->pcq_head_lock);
-
 
     while (pcq_isEmpty(queue)) {
         pthread_cond_wait(&(queue->pcq_popper_condvar), &(queue->pcq_popper_condvar_lock));
     }
 
+    pthread_mutex_lock(&(queue->pcq_head_lock));
 
     void* elem = queue->pcq_buffer[queue->pcq_head];
     queue->pcq_head++;
     queue->pcq_head = queue->pcq_head % queue->pcq_capacity;
     queue->pcq_current_size--;
 
-    pthread_cond_signal(&(queue->pcq_pusher_condvar));  // Signal or broadcast?
+    pthread_mutex_unlock(&queue->pcq_head_lock);
+
+    pthread_cond_signal(&(queue->pcq_pusher_condvar));
     pthread_mutex_unlock(&(queue->pcq_popper_condvar_lock));
-    //pthread_mutex_unlock(&queue->pcq_current_size_lock);
-    //pthread_mutex_unlock(&queue->pcq_head_lock);
 
     return elem;
 }

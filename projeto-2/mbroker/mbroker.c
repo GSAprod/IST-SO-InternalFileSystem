@@ -86,9 +86,10 @@ void write_in_box(char *box_name, char *message) {
 
 
 /************************* Connect publisher to box **************************/
-void connect_publisher(char *pipe_name, char *box_name) {
+void connect_publisher(char *box_name, char *pipe_name) {
 
     char message_to_write[TFS_BLOCK_SIZE];
+    char box_path[BOX_NAME_SIZE];
     char encoded_message[1026];
 
     //Verify if box exists
@@ -130,7 +131,10 @@ void connect_publisher(char *pipe_name, char *box_name) {
         
         prot_decode_message(message_to_write, encoded_message, sizeof(encoded_message));
 
-        write_in_box(box_name, message_to_write);
+        strcpy(box_path, "/");
+        strcat(box_path, box_name);
+
+        write_in_box(box_path, message_to_write);
     }
 
     close(session_pipe);
@@ -144,6 +148,7 @@ void connect_publisher(char *pipe_name, char *box_name) {
 void connect_subscriber(char *box_name, char *pipe_name) {
 
     char message[TFS_BLOCK_SIZE];
+    char box_path[BOX_NAME_SIZE];
     char encoded[1026];
 
 
@@ -155,7 +160,10 @@ void connect_subscriber(char *box_name, char *pipe_name) {
         return;
     }
 
-    int box = tfs_open(box_name, 0);
+    strcpy(box_path, "/");
+    strcat(box_path, box_name);
+
+    int box = tfs_open(box_path, 0);
 
     ssize_t bytes_read = tfs_read(box, message, sizeof(message));
     
@@ -212,6 +220,7 @@ void connect_subscriber(char *box_name, char *pipe_name) {
 void create_box(char *box_name, char *pipe_name) {
 
     char encoded[1030];
+    char box_path[BOX_NAME_SIZE];
     char error_message[ERROR_MESSAGE_SIZE];
     //0 if box is created, -1 is box is not created
     int return_code = 0, box_index;
@@ -240,8 +249,11 @@ void create_box(char *box_name, char *pipe_name) {
         return;
     }
 
+    strcpy(box_path, "/");
+    strcat(box_path, box_name);
 
-    int create_box = tfs_open(box_name, TFS_O_CREAT);
+
+    int create_box = tfs_open(box_path, TFS_O_CREAT);
     
     //If the box is not created, create error message
     if (create_box == -1){
@@ -269,6 +281,53 @@ void create_box(char *box_name, char *pipe_name) {
     }
 
     tfs_close(create_box);
+
+    fprintf(stdout, "OK\n");
+}
+/*****************************************************************************/
+
+
+
+/******************************* Remove a box ********************************/
+void remove_box(char *box_name, char *pipe_name) {
+
+    char encoded[1030];
+    char box_path[BOX_NAME_SIZE];
+    char error_message[ERROR_MESSAGE_SIZE];
+    //0 if box is removed, -1 is box is not removed
+    int return_code = 0;
+    
+
+    int pipe = open(pipe_name, O_WRONLY);
+    if (pipe == -1) {
+        fprintf(stderr, "[ERROR]: Failed to open pipe: %s\n", strerror(errno));
+        return;
+    }
+
+    strcpy(box_path, "/");
+    strcat(box_path, box_name);
+
+    //If the box is not removed, create error message
+    if (tfs_unlink(box_path) == -1) {
+
+        return_code = -1;
+        strcpy(error_message, "Error while removing box.");
+    } else {
+
+        //Remove from box list
+        int box_index = get_box_index(box_name);
+        memset(boxes[box_index].box_name, 0, sizeof(boxes[box_index].box_name));
+        boxes[box_index].publishers = 0;
+        boxes[box_index].subscribers = 0;
+        active_boxes--;
+    }
+    
+    prot_encode_inbox_creation_resp(return_code, error_message, encoded, sizeof(encoded));
+
+    //Send responde to the create box request
+    ssize_t wr = write(pipe, encoded, sizeof(encoded));
+    if (wr == -1)
+        return;
 
     fprintf(stdout, "OK\n");
 }
@@ -311,9 +370,12 @@ void list_boxes(char *pipe_name) {
                 last = 1;
             }
 
+            memset(box_name, '\0', sizeof(box_name));
+            strcpy(box_name, "/");
+            strcat(box_name, boxes[i].box_name);
 
             //Get size of box (bytes written)
-            int box = tfs_open(boxes[i].box_name, 0);
+            int box = tfs_open(box_name, 0);
             if (box == -1) {
                 fprintf(stderr, "[ERROR]: Failed to open box: %s\n", strerror(errno));
                 return;
@@ -341,86 +403,42 @@ void list_boxes(char *pipe_name) {
 
 
 
-/******************************* Remove a box ********************************/
-void remove_box(char *box_name, char *pipe_name) {
-
-    char encoded[1030];
-    char error_message[ERROR_MESSAGE_SIZE];
-    //0 if box is removed, -1 is box is not removed
-    int return_code = 0;
-    
-
-    int pipe = open(pipe_name, O_WRONLY);
-    if (pipe == -1) {
-        fprintf(stderr, "[ERROR]: Failed to open pipe: %s\n", strerror(errno));
-        return;
-    }
-
-
-    //If the box is not removed, create error message
-    if (tfs_unlink(box_name) == -1) {
-
-        return_code = -1;
-        strcpy(error_message, "Error while removing box.");
-    } else {
-
-        //Remove from box list
-        int box_index = get_box_index(box_name);
-        memset(boxes[box_index].box_name, 0, sizeof(boxes[box_index].box_name));
-        boxes[box_index].publishers = 0;
-        boxes[box_index].subscribers = 0;
-        active_boxes--;
-    }
-    
-    prot_encode_inbox_creation_resp(return_code, error_message, encoded, sizeof(encoded));
-
-    //Send responde to the create box request
-    ssize_t wr = write(pipe, encoded, sizeof(encoded));
-    if (wr == -1)
-        return;
-
-    fprintf(stdout, "OK\n");
-}
-/*****************************************************************************/
-
-
-
 /****************************** Thread Manager *******************************/
 void *thread_manager() {
 
-    sleep(1);
-    printf("thread_feita\n");
-    char encoded[1026];
-    memcpy(encoded, (char*) pcq_dequeue(&pc_queue), sizeof(encoded));
+    while (true) {
+        char encoded[1026];
+        memcpy(encoded, (char*) pcq_dequeue(&pc_queue), sizeof(encoded));
 
-    int code = encoded[0];
-    char pipe_name[SESSION_PIPE_NAME_SIZE];
-    char box_name[BOX_NAME_SIZE];
-        
+        int code = encoded[0];
+        char pipe_name[SESSION_PIPE_NAME_SIZE];
+        char box_name[BOX_NAME_SIZE];
 
-    switch (code) {
-        case 1:
-            prot_decode_registrations(pipe_name, box_name, encoded, sizeof(encoded));
-            connect_publisher(pipe_name, box_name);
-            break;
-        case 2:
-            prot_decode_registrations(pipe_name, box_name, encoded, sizeof(encoded));
-            connect_subscriber(box_name, pipe_name);
-            break;
-        case 3:
-            prot_decode_registrations(pipe_name, box_name, encoded, sizeof(encoded));
-            create_box(box_name, pipe_name);
-            break;
-        case 5:
-            prot_decode_registrations(pipe_name, box_name, encoded, sizeof(encoded));
-            remove_box(box_name, pipe_name);
-            break;
-        case 7:
-            prot_decode_inbox_listing_req(pipe_name, encoded, sizeof(encoded));
-            list_boxes(pipe_name);
-            break;
-        default:
-            printf("Invalid code\n");
+
+        switch (code) {
+            case 1:
+                prot_decode_registrations(pipe_name, box_name, encoded, sizeof(encoded));
+                connect_publisher(box_name, pipe_name);
+                break;
+            case 2:
+                prot_decode_registrations(pipe_name, box_name, encoded, sizeof(encoded));
+                connect_subscriber(box_name, pipe_name);
+                break;
+            case 3:
+                prot_decode_registrations(pipe_name, box_name, encoded, sizeof(encoded));
+                create_box(box_name, pipe_name);
+                break;
+            case 5:
+                prot_decode_registrations(pipe_name, box_name, encoded, sizeof(encoded));
+                remove_box(box_name, pipe_name);
+                break;
+            case 7:
+                prot_decode_inbox_listing_req(pipe_name, encoded, sizeof(encoded));
+                list_boxes(pipe_name);
+                break;
+            default:
+                printf("Invalid code\n");
+        }
     }
 
     return NULL;
