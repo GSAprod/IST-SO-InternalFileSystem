@@ -11,6 +11,7 @@
 
 int register_pipe = -1, session_pipe = -1;
 char session_pipe_name[256];
+int message_count = 0;
 
 void print_usage() {
     fprintf(stderr, "usage: sub <register_session_pipe> <session_pipe> <box_name>\n");
@@ -26,8 +27,7 @@ void sigIntHandler(int signal) {
         unlink(session_pipe_name);
     }
     
-    puts("\n[INFO]: CTRL+C. Process closed successfully");
-
+    printf("\nSignal interrupt. Received %d messages.\n", message_count);
     exit(0);
 }
 
@@ -90,6 +90,7 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
+    message_count = 0;
     ssize_t rd_resp = read(session_pipe, encoded_response, sizeof(encoded_response));
     while (rd_resp > 0) {
         //Check if pipe is still open
@@ -100,14 +101,23 @@ int main(int argc, char **argv) {
 
         prot_decode_message(inbox_message, encoded_response, sizeof(encoded_response));
 
-        if (strlen(inbox_message) > 0)
+        if (strlen(inbox_message) > 0) {
             fprintf(stdout, "%s\n", inbox_message);
 
+            // Count the number of messages received
+            for(int i = 0; i < strlen(inbox_message); i++)
+                if(inbox_message[i] == '\n')
+                    message_count++;
+            
+            message_count++;
+        }
         rd_resp = read(session_pipe, encoded_response, sizeof(encoded_response));
     }
     //Decode response from mbroker
     if (rd_resp == -1) {
         fprintf(stderr, "[ERROR]: Failed to read from pipe: %s\n", strerror(errno));
+    } else {
+        printf("Received %d messages", message_count);
     }
 
     close(register_pipe);
