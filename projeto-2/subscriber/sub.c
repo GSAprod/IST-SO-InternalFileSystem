@@ -10,6 +10,7 @@
 
 
 int register_pipe = -1, session_pipe = -1;
+char session_pipe_name[256];
 
 void print_usage() {
     fprintf(stderr, "usage: sub <register_session_pipe> <session_pipe> <box_name>\n");
@@ -18,12 +19,12 @@ void print_usage() {
 
 void sigIntHandler(int signal) {
     (void)signal;
-    if(register_pipe != -1) {
-
+    if(register_pipe != -1)
         close(register_pipe);
-    }
-    if(session_pipe != -1)
+    if(session_pipe != -1) {
         close(session_pipe);
+        unlink(session_pipe_name);
+    }
     
     puts("\n[INFO]: CTRL+C. Process closed successfully");
 
@@ -63,6 +64,7 @@ int main(int argc, char **argv) {
         fprintf(stderr, "[ERROR]: Failed to create pipe: %s\n", strerror(errno));
         exit(EXIT_FAILURE);
     }
+    strcpy(session_pipe_name, argv[2]);
 
     //Register pipe
     register_pipe = open(argv[1], O_WRONLY);

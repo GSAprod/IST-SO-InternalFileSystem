@@ -186,7 +186,14 @@ void connect_subscriber(char *box_name, char *pipe_name) {
         if (aux == -1)
             break;
         tfs_close(aux);
+
+        // Check if the pipe still exists
+        aux = open(pipe_name, O_WRONLY | O_NONBLOCK);
+        if (aux == -1)
+            break;
+        close(aux);
         
+        // Read the file form tfs
         ssize_t bytes_read = tfs_read(box, buffer, sizeof(buffer));
 
         pthread_mutex_lock(&lock);
@@ -434,7 +441,7 @@ void *thread_manager() {
         
         printf("element: %s\n", encoded);
         printf("code: %d\n", encoded[0]);
-        
+
         pthread_cond_broadcast(&write_cond);
 
         switch (code) {
