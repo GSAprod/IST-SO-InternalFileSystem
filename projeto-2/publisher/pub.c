@@ -40,6 +40,8 @@ int main(int argc, char **argv) {
     char encoded[291];
     char encoded_message[1026];
     char message_to_write[1024];
+    bool scan_end = false;
+    int ind = 0;
     
     if(argc != 4) {
         print_usage();
@@ -107,12 +109,24 @@ int main(int argc, char **argv) {
 
     //Read messages to write in box
     printf("Insert words to write in box (CTRL+D to stop):\n");
-    int scan = scanf("%s", message_to_write);
 
-    while (scan != EOF) {
-        if (scan == -1)
-            return -1;
-    
+    while (scan_end == false) {
+        
+        while(true) {
+            int scan = scanf("%c", &message_to_write[ind]);
+            if (scan == -1)
+                return -1;
+            if (message_to_write[ind] == '\n') {
+                message_to_write[ind] = '\0';
+                break;
+            }else if (message_to_write[ind] == EOF) {
+                scan_end = true;
+                break;
+            }
+            else
+                ind++;
+        }
+        
         prot_encode_pub_send_message(message_to_write, encoded_message, sizeof(encoded_message));
 
         ssize_t session_pipe_wr = write(session_pipe, encoded_message, sizeof(encoded_message));
@@ -123,7 +137,7 @@ int main(int argc, char **argv) {
         }
 
         memset(message_to_write, 0, sizeof(message_to_write));
-        scan = scanf("%s", message_to_write);
+        ind = 0;
     }
     
     close(session_pipe);
