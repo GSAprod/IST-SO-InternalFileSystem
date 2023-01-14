@@ -180,8 +180,13 @@ void connect_subscriber(char *box_name, char *pipe_name) {
     }
 
     pthread_mutex_init(&lock, NULL);
-    int able_to_read = 1;
-    while (able_to_read) { 
+    while (true) { 
+        // Check if the file still exists
+        int aux = tfs_open(box_path, 0);
+        if (aux == -1)
+            break;
+        tfs_close(aux);
+        
         ssize_t bytes_read = tfs_read(box, buffer, sizeof(buffer));
 
         pthread_mutex_lock(&lock);
@@ -195,6 +200,7 @@ void connect_subscriber(char *box_name, char *pipe_name) {
         //Failed to read from box
         if (bytes_read == -1) {
             fprintf(stderr, "[ERROR]: Failed to read message: %s\n", strerror(errno));
+            tfs_close(box);
             break;
         }
 
@@ -215,13 +221,12 @@ void connect_subscriber(char *box_name, char *pipe_name) {
         prot_encode_sub_receive_message(buffer, encoded, sizeof(encoded));
         
         ssize_t wr = write(pipe, encoded, sizeof(encoded));
-        if (wr == -1) {
-            able_to_read = 0;
-        }
+        if (wr == -1)
+            break;
     }
     pthread_mutex_destroy(&lock);
-    tfs_close(box);
     close(pipe);
+    unlink(pipe_name);
 }
 /*****************************************************************************/
 
@@ -331,6 +336,7 @@ void remove_box(char *box_name, char *pipe_name) {
         boxes[box_index].publishers = 0;
         boxes[box_index].subscribers = 0;
         active_boxes--;
+        pthread_cond_broadcast(&write_cond);
     }
     
     prot_encode_inbox_creation_resp(return_code, error_message, encoded, sizeof(encoded));

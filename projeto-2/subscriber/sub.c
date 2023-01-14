@@ -18,8 +18,10 @@ void print_usage() {
 
 void sigIntHandler(int signal) {
     (void)signal;
-    if(register_pipe != -1)
+    if(register_pipe != -1) {
+
         close(register_pipe);
+    }
     if(session_pipe != -1)
         close(session_pipe);
     
@@ -88,6 +90,12 @@ int main(int argc, char **argv) {
 
     ssize_t rd_resp = read(session_pipe, encoded_response, sizeof(encoded_response));
     while (rd_resp > 0) {
+        //Check if pipe is still open
+        int aux = open(argv[2], O_RDONLY);
+        if (aux == -1) {
+            break;
+        }
+
         prot_decode_message(inbox_message, encoded_response, sizeof(encoded_response));
 
         if (strlen(inbox_message) > 0)
