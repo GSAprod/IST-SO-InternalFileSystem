@@ -37,6 +37,7 @@ pc_queue_t pc_queue;
 
 pthread_cond_t write_cond;
 
+
 void print_usage() {
     fprintf(stderr, "usage: mbroker <pipename> <max_sessions>\n");
 }
@@ -123,6 +124,9 @@ void connect_publisher(char *box_name, char *pipe_name) {
     //Wait for write until pipe is closed
     while (true) {
 
+        strcpy(box_path, "/");
+        strcat(box_path, box_name); 
+
         memset(message_to_write, 0, sizeof(message_to_write));
         memset(encoded_message, 0, sizeof(encoded_message));
 
@@ -134,9 +138,6 @@ void connect_publisher(char *box_name, char *pipe_name) {
             break;
 
         prot_decode_message(message_to_write, encoded_message, sizeof(encoded_message));
-
-        strcpy(box_path, "/");
-        strcat(box_path, box_name);
 
         write_in_box(box_path, message_to_write);
         pthread_cond_broadcast(&write_cond);
@@ -185,8 +186,11 @@ void connect_subscriber(char *box_name, char *pipe_name) {
     while (true) { 
         // Check if the file still exists
         int aux = tfs_open(box_path, 0);
-        if (aux == -1)
+        if (aux == -1) {
+            tfs_close(box);
+            tfs_close(aux);
             break;
+        }
         tfs_close(aux);
 
         // Check if the pipe still exists
@@ -314,6 +318,11 @@ void create_box(char *box_name, char *pipe_name) {
 
 
 /******************************* Remove a box ********************************/
+/* 
+* The command manager remove will fail if the box doen't exist or if there is
+* a publisher connected to the box that we are trying to remove. To successfully
+* remove a box, the box must not have publishers connected.
+*/
 void remove_box(char *box_name, char *pipe_name) {
 
     char encoded[1030];
@@ -321,13 +330,32 @@ void remove_box(char *box_name, char *pipe_name) {
     char error_message[ERROR_MESSAGE_SIZE];
     //0 if box is removed, -1 is box is not removed
     int return_code = 0;
-    
+
 
     int pipe = open(pipe_name, O_WRONLY);
     if (pipe == -1) {
         fprintf(stderr, "[ERROR]: Failed to open pipe: %s\n", strerror(errno));
         return;
     }
+
+    //Verify if box exists
+    int box_index = get_box_index(box_name);
+
+    
+    if (boxes[box_index].publishers >= 1) {
+        printf("Failed to remove box. Publisher connected.\n");
+        return_code = -1;
+        strcpy(error_message, "Error while removing box.");
+        prot_encode_inbox_creation_resp(return_code, error_message, encoded, sizeof(encoded));
+
+        //Send responde to the create box request
+        ssize_t wr = write(pipe, encoded, sizeof(encoded));
+        if (wr == -1)
+            return;
+        return;
+    }
+    
+
 
     strcpy(box_path, "/");
     strcat(box_path, box_name);
@@ -340,7 +368,6 @@ void remove_box(char *box_name, char *pipe_name) {
     } else {
 
         //Remove from box list
-        int box_index = get_box_index(box_name);
         memset(boxes[box_index].box_name, 0, sizeof(boxes[box_index].box_name));
         boxes[box_index].publishers = 0;
         boxes[box_index].subscribers = 0;
@@ -356,6 +383,7 @@ void remove_box(char *box_name, char *pipe_name) {
         return;
 
     fprintf(stdout, "OK\n");
+    pthread_cond_broadcast(&write_cond);
 }
 /*****************************************************************************/
 
@@ -496,8 +524,10 @@ int main(int argc, char **argv) {
     int max_sessions;
     max_sessions = atoi(argv[2]);
 
+
     /* Initialize the threads list and the queue */
     pthread_t threads[max_sessions];
+
     pcq_create(&pc_queue, (size_t) max_sessions);
 
     pthread_cond_init(&write_cond, NULL);
