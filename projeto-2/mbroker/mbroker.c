@@ -168,6 +168,7 @@ void connect_subscriber(char *box_name, char *pipe_name) {
         unlink(pipe_name);
         return;
     }
+    boxes[box_index].subscribers++;
 
     strcpy(box_path, "/");
     strcat(box_path, box_name);
@@ -240,6 +241,7 @@ void connect_subscriber(char *box_name, char *pipe_name) {
     pthread_mutex_destroy(&lock);
     close(pipe);
     unlink(pipe_name);
+    boxes[box_index].subscribers--;
 }
 /*****************************************************************************/
 
@@ -567,6 +569,8 @@ int main(int argc, char **argv) {
             return -1;
         }
 
+        pthread_cond_broadcast(&write_cond);
+        
         pcq_enqueue(&pc_queue, encoded);
     }
 
