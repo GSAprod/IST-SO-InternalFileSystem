@@ -104,9 +104,6 @@ int main(int argc, char **argv) {
     }
 
 
-    //TO DO: usar getchar para nao separar frases
-
-
     //Read messages to write in box
     printf("Insert words to write in box (CTRL+D to stop):\n");
 
@@ -125,12 +122,12 @@ int main(int argc, char **argv) {
             }
             else
                 ind++;
-        }
+        }        
         
         prot_encode_pub_send_message(message_to_write, encoded_message, sizeof(encoded_message));
-
+        
         ssize_t session_pipe_wr = write(session_pipe, encoded_message, sizeof(encoded_message));
-
+        
         if (session_pipe_wr == -1) {
             fprintf(stderr, "[ERROR]: Failed to write in pipe: %s\n", strerror(errno));
             exit(EXIT_FAILURE);

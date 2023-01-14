@@ -124,13 +124,15 @@ void connect_publisher(char *box_name, char *pipe_name) {
     while (true) {
 
         memset(message_to_write, 0, sizeof(message_to_write));
+        memset(encoded_message, 0, sizeof(encoded_message));
+
         ssize_t bytes_read = read(session_pipe, &encoded_message, sizeof(encoded_message));
         if (bytes_read == -1) {
             fprintf(stderr, "[ERROR]: Failed to read from pipe: %s\n", strerror(errno));
             return;
         } else if (bytes_read == 0) 
             break;
-        
+
         prot_decode_message(message_to_write, encoded_message, sizeof(encoded_message));
 
         strcpy(box_path, "/");
