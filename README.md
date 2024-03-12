@@ -1,4 +1,4 @@
-# IST_SO-TecnicoFileSystem
+# IST-SO-InternalFileSystem
 
 O objetivo deste projeto é a criação de uma versão simplificada de um sistema de ficheiros interno,
 que possa ser usado como uma biblioteca por qualquer programa e/ou conjunto de processos que
